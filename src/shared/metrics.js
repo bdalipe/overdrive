@@ -6,9 +6,22 @@ function startTimer() {
     return Date.now();
 }
 
-function logCommandStart(interaction) {
-    logger.info('command_start', {
-        command: interaction.commandName,
+function getInteractionLabel(interaction) {
+    if (interaction.isChatInputCommand()) {
+        return interaction.commandName;
+    }
+
+    if (interaction.isButton()) {
+        return interaction.customId;
+    }
+
+    return 'unknown';
+}
+
+function logInteractionStart(interaction) {
+    logger.info('interaction_start', {
+        type: interaction.isChatInputCommand() ? 'command' : interaction.isButton() ? 'button' : 'other',
+        label: getInteractionLabel(interaction),
         userId: interaction.user.id,
         guildId: interaction.guildId,
     });
@@ -16,9 +29,10 @@ function logCommandStart(interaction) {
 
 function logResponseSent(interaction, startedAt) {
     const durationMs = Date.now() - startedAt;
+    const label = getInteractionLabel(interaction);
 
     logger.info('response_sent', {
-        command: interaction.commandName,
+        label,
         userId: interaction.user.id,
         guildId: interaction.guildId,
         durationMs,
@@ -26,7 +40,7 @@ function logResponseSent(interaction, startedAt) {
 
     if (durationMs > LATENCY_WARN_MS) {
         logger.warn('latency_threshold_exceeded', {
-            command: interaction.commandName,
+            label,
             durationMs,
             thresholdMs: LATENCY_WARN_MS,
         });
@@ -35,6 +49,6 @@ function logResponseSent(interaction, startedAt) {
 
 module.exports = {
     startTimer,
-    logCommandStart,
+    logInteractionStart,
     logResponseSent,
 };
