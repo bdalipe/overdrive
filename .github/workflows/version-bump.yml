@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: Bump package.json version
-        run: npm version ${{ steps.bump.outputs.type }} -m "chore(release): %s"
+        run: npm version ${{ steps.bump.outputs.type }} -m 'chore(release): %s'
 
       - name: Push commit and tag
         run: |
