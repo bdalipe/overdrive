@@ -12,6 +12,15 @@ function buildHelloEmbed(botEnv) {
         });
 }
 
+function buildOpenPackEmbed({ slot, totalSlots }) {
+    return new EmbedBuilder()
+        .setTitle('Open Pack')
+        .setDescription(`Card slot ${slot} — coming soon`)
+        .setColor(0xf1c40f)
+        .setFooter({ text: `Slot ${slot} of ${totalSlots}` });
+}
+
 module.exports = {
     buildHelloEmbed,
+    buildOpenPackEmbed,
 };

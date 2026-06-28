@@ -28,7 +28,7 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 | Error boundary + latency logging | Done |
 | Initial git commit + GitHub (`main` / `develop`) | Done |
 | SemVer automation (GitHub Actions + PR labels) | Done |
-| `/open-pack` placeholder pagination | Pending |
+| `/open-pack` placeholder (single slot; pagination next) | In progress |
 | Oracle Always Free VM + PM2 deployment | Pending |
 | Prod bot runtime profile | Pending |
 
@@ -37,6 +37,7 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 | Command | Description |
 |---------|-------------|
 | `/hello` | Greeting embed with current environment (`dev` / `prod`) |
+| `/open-pack` | Single placeholder card slot (pagination in a follow-up commit) |
 
 ---
 
@@ -221,7 +222,7 @@ Create three labels: `version:patch`, `version:minor`, `version:major`.
 - [x] Modular architecture, `/hello`, dev tooling
 - [x] Initial commit + GitHub (`main` / `develop`)
 - [x] SemVer automation (GitHub Actions)
-- [ ] `/open-pack` placeholder pagination
+- [ ] `/open-pack` placeholder pagination (single slot wired; pagination next)
 - [ ] Always-on VM hosting (PM2)
 - [ ] Prod bot runtime profile
 
