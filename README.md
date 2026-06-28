@@ -26,7 +26,8 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 | `/hello` command | Done |
 | Dev watch scripts (`npm run dev`, `dev:register`) | Done |
 | Error boundary + latency logging | Done |
-| Initial git commit + GitHub (`main` / `develop`) | Pending |
+| Initial git commit + GitHub (`main` / `develop`) | Done |
+| SemVer automation (GitHub Actions + PR labels) | Done |
 | `/open-pack` placeholder pagination | Pending |
 | Oracle Always Free VM + PM2 deployment | Pending |
 | Prod bot runtime profile | Pending |
@@ -170,7 +171,47 @@ Prod bot and VM hosting are planned for later in Phase 0. Local development uses
 | `develop` | Integration and testing |
 | `feature/*` | Short-lived work merged into `develop` |
 
+PRs into `develop` should include a **version label** (see [Versioning](#versioning)).
+
 Promotion flow: `develop` → validate on dev bot → PR to `main` → prod deploy.
+
+---
+
+## Versioning
+
+Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.x.y` during Phases 0–2).
+
+### Automated bumps (merge to `develop`)
+
+When a PR into **`develop`** is merged, the [Version Bump workflow](.github/workflows/version-bump.yml) runs:
+
+1. Reads PR labels to choose bump type.
+2. Runs `npm version patch|minor|major`.
+3. Pushes the commit and `v*` tag to `develop`.
+
+**Do not** run `npm version` on feature branches — let CI handle it at merge time.
+
+| Label | When to use |
+|-------|-------------|
+| `version:patch` | Fixes, small changes, docs |
+| `version:minor` | New command or feature slice |
+| `version:major` | Breaking changes (rare in `0.x`) |
+
+Default if no label: **patch**.
+
+### Creating labels on GitHub
+
+Labels are **not** under **Settings** in the sidebar. Use either:
+
+- **Direct URL:** [github.com/bdalipe/overdrive/labels](https://github.com/bdalipe/overdrive/labels)
+- **Issues tab** → **Labels** (if Issues are enabled for the repo)
+
+Create three labels: `version:patch`, `version:minor`, `version:major`.
+
+### Promotion to `main`
+
+- Merge `develop` → `main` when ready for prod.
+- Deploy from `main` and match prod to the latest `v*` tag on that branch.
 
 ---
 
@@ -178,9 +219,11 @@ Promotion flow: `develop` → validate on dev bot → PR to `main` → prod depl
 
 ### Phase 0 — Foundation
 - [x] Modular architecture, `/hello`, dev tooling
-- [X] Initial commit
+- [x] Initial commit + GitHub (`main` / `develop`)
+- [x] SemVer automation (GitHub Actions)
 - [ ] `/open-pack` placeholder pagination
 - [ ] Always-on VM hosting (PM2)
+- [ ] Prod bot runtime profile
 
 ### Phase 1 — Pack simulator
 - [ ] Nullable car schema (Supabase)
