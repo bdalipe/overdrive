@@ -16,8 +16,19 @@ const commandHandlers = new Map([
     [openPack.name, openPack],
 ]);
 
+const buttonHandlers = [
+    {
+        prefix: openPack.paginationPrefix,
+        handle: openPack.handleButton,
+    },
+];
+
 function getCommandHandlers() {
     return commandHandlers;
+}
+
+function getButtonHandlers() {
+    return buttonHandlers;
 }
 
 function getCommandDefinitions() {
@@ -26,5 +37,6 @@ function getCommandDefinitions() {
 
 module.exports = {
     getCommandHandlers,
+    getButtonHandlers,
     getCommandDefinitions,
 };
