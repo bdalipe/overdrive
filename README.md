@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.0.1` (pre-release)
+**Version:** `0.1.0` (M0 complete — Phases 1–2 in progress)
 
 ---
 
@@ -12,9 +12,9 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, VM hosting | In progress |
+| **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, dev/prod config | **Complete** |
 | **1** — Pack simulator | M1: weighted packs, admin tuning, stats events | Not started |
-| **2** — Collection & profile | M2: garage, wishlist, profile, card templates | Not started |
+| **2** — Collection & profile | M2: garage, wishlist, profile, card templates, **Wispbyte prod deploy** | Not started |
 
 ### Phase 0 checklist
 
@@ -29,8 +29,10 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 | Initial git commit + GitHub (`main` / `develop`) | Done |
 | SemVer automation (GitHub Actions + PR labels) | Done |
 | `/open-pack` placeholder pagination (5 slots, Prev/Next) | Done |
-| Oracle Always Free VM + PM2 deployment | Pending |
-| Prod bot runtime profile | Pending |
+| Prod-ready runtime config (`BOT_ENV`, `.env.prod` pattern) | Done |
+| Local dev workflow for testing (`npm run dev`, dev bot + test guild) | Done |
+
+**Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 2** (after M2 features are validated locally). Phases 0–1 use the **dev bot on your PC** for testing.
 
 ### Commands available today
 
@@ -118,7 +120,7 @@ npm start
 
 | Script | Description |
 |--------|-------------|
-| `npm start` | Run bot once (used on VM / PM2) |
+| `npm start` | Run bot once (used on Wispbyte / production-style runs) |
 | `npm run dev` | Run bot with `node --watch` — restarts on file save |
 | `npm run register-commands` | Push slash command definitions to Discord (uses `BOT_ENV`) |
 | `npm run dev:register` | Register commands, then start dev watch mode |
@@ -140,7 +142,7 @@ src/
 ├── index.js              # Client bootstrap, event wiring
 ├── register-commands.js  # One-off slash command registration (REST)
 ├── commands/             # Slash command handlers + registry
-├── interactions/         # Router (dispatch, errors, metrics)
+├── interactions/         # Router, pagination, button dispatch
 ├── renderers/            # Embeds and future card UI
 └── shared/               # Config, logger, metrics, errors
 ```
@@ -159,8 +161,34 @@ One codebase, two bot runtimes (separate Discord applications):
 | Branch | `develop` | `main` |
 | Credentials | Dev token, dev guild | Prod token, live guild |
 | Registration | `BOT_ENV=dev npm run register-commands` | `BOT_ENV=prod npm run register-commands` |
+| Hosting (Phases 0–1) | Local PC (`npm run dev`) | Not deployed yet |
+| Hosting (end of Phase 2) | Local PC (dev bot) | Wispbyte Tier 1+ (24/7 prod bot) |
 
-Prod bot and VM hosting are planned for later in Phase 0. Local development uses the dev bot only for now.
+During Phases 0–1, run the **dev bot locally** for you and a small test group (1–3 users). Deploy the **prod bot to Wispbyte** once Phase 2 (M2) is complete and validated.
+
+---
+
+## Hosting (Wispbyte — end of Phase 2)
+
+Production hosting uses **Wispbyte** Discord bot hosting (Tier 1 or higher recommended for headroom before image-heavy features).
+
+| Concern | Approach |
+|---------|----------|
+| **When** | After M2 acceptance — garage, wishlist, profile, card templates working in dev |
+| **What deploys** | **Prod bot only** (`BOT_ENV=prod`, `main` branch) — one bot per Wispbyte server |
+| **Dev bot** | Stays on your PC (`npm run dev`) for ongoing development |
+| **Start command** | `npm start` (panel sets `BOT_ENV=prod` via environment variables) |
+| **Secrets** | Set token, client ID, and guild ID in the Wispbyte panel — never commit |
+
+**Pre-deploy checklist (M2):**
+
+1. Merge `develop` → `main`; confirm latest `v*` tag.
+2. Register prod slash commands once from a machine with prod env (`BOT_ENV=prod npm run register-commands`).
+3. Upload or `git pull` on Wispbyte; install deps; set env vars; start bot.
+4. Verify `/hello`, `/open-pack`, garage, and profile in the live guild.
+5. Confirm panel auto-restart after stop/crash.
+
+Oracle Cloud VM was considered early in planning; **Wispbyte replaces always-on prod hosting** for simpler deployment at our expected scale (~10–20 users).
 
 ---
 
@@ -174,7 +202,7 @@ Prod bot and VM hosting are planned for later in Phase 0. Local development uses
 
 PRs into `develop` should include a **version label** (see [Versioning](#versioning)).
 
-Promotion flow: `develop` → validate on dev bot → PR to `main` → prod deploy.
+Promotion flow: `develop` → validate on **local dev bot** → PR to `main` → (Wispbyte prod deploy at **end of Phase 2**).
 
 ---
 
@@ -218,13 +246,13 @@ Create three labels: `version:patch`, `version:minor`, `version:major`.
 
 ## Roadmap (Phases 0–2)
 
-### Phase 0 — Foundation
+### Phase 0 — Foundation ✅
 - [x] Modular architecture, `/hello`, dev tooling
 - [x] Initial commit + GitHub (`main` / `develop`)
 - [x] SemVer automation (GitHub Actions)
 - [x] `/open-pack` placeholder pagination (5 slots, reusable `pagination.js`)
-- [ ] Always-on VM hosting (PM2)
-- [ ] Prod bot runtime profile
+- [x] Dev/prod runtime config (`BOT_ENV`, separate env files)
+- [x] Local dev testing workflow (dev bot on PC)
 
 ### Phase 1 — Pack simulator
 - [ ] Nullable car schema (Supabase)
@@ -238,6 +266,7 @@ Create three labels: `version:patch`, `version:minor`, `version:major`.
 - [ ] Card template rendering
 - [ ] Garage sort / filter / reset
 - [ ] `/view-card`, wishlist, settings, profile
+- [ ] **Wispbyte prod deployment** (24/7 prod bot after M2 validation)
 
 Phases 3+ (economy, upgrades, events, campaign) are outlined in the design document but out of scope for the current README cycle.
 
