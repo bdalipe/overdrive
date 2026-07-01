@@ -2,19 +2,24 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.0.1` (pre-release)
+**Version:** `0.1.0` (M0 complete — Phase 1 next)
+
+See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
 ---
 
 ## Development status
 
-> **Maintainers:** Update this section whenever a phase milestone or major feature lands. Keep command lists, setup notes, and checklists in sync with the codebase.
+> **Maintainers:** Update this section and [CHANGELOG.md](CHANGELOG.md) whenever a phase milestone or major feature lands. Keep command lists, setup notes, and checklists in sync with the codebase.
 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
-| **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, VM hosting | In progress |
-| **1** — Pack simulator | M1: weighted packs, admin tuning, stats events | Not started |
-| **2** — Collection & profile | M2: garage, wishlist, profile, card templates | Not started |
+| **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, dev/prod config | **Complete** |
+| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | Not started |
+| **2** — Pack definitions | M2: themed packs (admin create/configure), user pack picker (15–20 packs) | Not started |
+| **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
+| **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
+| **5** — Collection & profile | M5: garage, wishlist, profile, view-card, **Wispbyte prod deploy** | Not started |
 
 ### Phase 0 checklist
 
@@ -26,16 +31,20 @@ Discord bot for collecting cars through pack openings, garages, and community fe
 | `/hello` command | Done |
 | Dev watch scripts (`npm run dev`, `dev:register`) | Done |
 | Error boundary + latency logging | Done |
-| Initial git commit + GitHub (`main` / `develop`) | Pending |
-| `/open-pack` placeholder pagination | Pending |
-| Oracle Always Free VM + PM2 deployment | Pending |
-| Prod bot runtime profile | Pending |
+| Initial git commit + GitHub (`main` / `develop`) | Done |
+| SemVer automation (GitHub Actions + PR labels) | Done |
+| `/open-pack` placeholder pagination (5 slots, Prev/Next) | Done |
+| Prod-ready runtime config (`BOT_ENV`, `.env.prod` pattern) | Done |
+| Local dev workflow for testing (`npm run dev`, dev bot + test guild) | Done |
+
+**Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 5** (after M5). Phases 0–4 use the **dev bot on your PC**.
 
 ### Commands available today
 
 | Command | Description |
 |---------|-------------|
 | `/hello` | Greeting embed with current environment (`dev` / `prod`) |
+| `/open-pack` | 5-page placeholder pack reveal with Previous/Next buttons |
 
 ---
 
@@ -116,7 +125,7 @@ npm start
 
 | Script | Description |
 |--------|-------------|
-| `npm start` | Run bot once (used on VM / PM2) |
+| `npm start` | Run bot once (used on Wispbyte / production-style runs) |
 | `npm run dev` | Run bot with `node --watch` — restarts on file save |
 | `npm run register-commands` | Push slash command definitions to Discord (uses `BOT_ENV`) |
 | `npm run dev:register` | Register commands, then start dev watch mode |
@@ -138,9 +147,11 @@ src/
 ├── index.js              # Client bootstrap, event wiring
 ├── register-commands.js  # One-off slash command registration (REST)
 ├── commands/             # Slash command handlers + registry
-├── interactions/         # Router (dispatch, errors, metrics)
-├── renderers/            # Embeds and future card UI
+├── interactions/         # Router, pagination, pack picker (Phase 2+)
+├── renderers/            # Embeds; card/ components (Phase 3+)
 └── shared/               # Config, logger, metrics, errors
+assets/card/              # Reference sketch + future card art
+docs/                     # Draft specs (e.g. performance formulas)
 ```
 
 - **Registration** (`register-commands.js`) tells Discord which commands exist (HTTP REST).
@@ -157,8 +168,26 @@ One codebase, two bot runtimes (separate Discord applications):
 | Branch | `develop` | `main` |
 | Credentials | Dev token, dev guild | Prod token, live guild |
 | Registration | `BOT_ENV=dev npm run register-commands` | `BOT_ENV=prod npm run register-commands` |
+| Hosting (Phases 0–4) | Local PC (`npm run dev`) | Not deployed yet |
+| Hosting (end of Phase 5) | Local PC (dev bot) | Wispbyte Tier 1+ (24/7 prod bot) |
 
-Prod bot and VM hosting are planned for later in Phase 0. Local development uses the dev bot only for now.
+During Phases 0–4, run the **dev bot locally**. Deploy the **prod bot to Wispbyte** once Phase 5 (M5) is complete.
+
+---
+
+## Hosting (Wispbyte — end of Phase 5)
+
+Production hosting uses **Wispbyte** Discord bot hosting (Tier 1 or higher recommended; consider more RAM once card composition is live).
+
+| Concern | Approach |
+|---------|----------|
+| **When** | After M5 acceptance |
+| **What deploys** | **Prod bot only** (`BOT_ENV=prod`, `main` branch) |
+| **Dev bot** | Stays on your PC (`npm run dev`) |
+| **Start command** | `npm start` |
+| **Secrets** | Wispbyte panel — never commit |
+
+**Pre-deploy checklist (M5):** merge to `main`, register prod commands, smoke-test packs (with composed cards), garage, `/calc-performance`, profile, wishlist; verify panel auto-restart.
 
 ---
 
@@ -170,41 +199,79 @@ Prod bot and VM hosting are planned for later in Phase 0. Local development uses
 | `develop` | Integration and testing |
 | `feature/*` | Short-lived work merged into `develop` |
 
-Promotion flow: `develop` → validate on dev bot → PR to `main` → prod deploy.
+PRs into `develop` should include a **version label** and update **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
-## Roadmap (Phases 0–2)
+## Versioning
 
-### Phase 0 — Foundation
-- [x] Modular architecture, `/hello`, dev tooling
-- [X] Initial commit
-- [ ] `/open-pack` placeholder pagination
-- [ ] Always-on VM hosting (PM2)
+Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.x.y` during Phases 0–5).
+
+### Changelog discipline
+
+- Add entries under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) as features merge to `develop`.
+- When CI bumps the version, move `[Unreleased]` into a dated `## [X.Y.Z]` section and update the **Version** line at the top of this README.
+
+### Automated bumps (merge to `develop`)
+
+See [Version Bump workflow](.github/workflows/version-bump.yml). Default label if none: **patch**.
+
+| Label | When to use |
+|-------|-------------|
+| `version:patch` | Fixes, small changes, docs |
+| `version:minor` | New command or feature slice |
+| `version:major` | Breaking changes (rare in `0.x`) |
+
+---
+
+## Roadmap (Phases 0–5)
+
+### Phase 0 — Foundation ✅
+- [x] Modular architecture, `/hello`, dev tooling, SemVer CI
+- [x] `/open-pack` placeholder pagination
+- [x] Dev/prod config + local dev workflow
 
 ### Phase 1 — Pack simulator
-- [ ] Nullable car schema (Supabase)
-- [ ] Weighted pack generation (configurable size)
-- [ ] Paginated pack reveal (low → high rarity)
-- [ ] Admin drop-rate / debug commands
-- [ ] Stats event tracking
+- [ ] Nullable car schema + **Unavailable** / **N/A** display
+- [ ] Multi-pack DB schema + default pack
+- [ ] Weighted default-pack opens + stats events
+- [ ] Text embed pack reveal (composed cards in Phase 3)
 
-### Phase 2 — Collection & profile
-- [ ] Garage persistence (duplicate stacks)
-- [ ] Card template rendering
-- [ ] Garage sort / filter / reset
-- [ ] `/view-card`, wishlist, settings, profile
+### Phase 2 — Pack definitions
+- [ ] Admin themed-pack create/configure/disable
+- [ ] User pack picker (15–20 packs, search/filter)
 
-Phases 3+ (economy, upgrades, events, campaign) are outlined in the design document but out of scope for the current README cycle.
+### Phase 3 — Modular card composition
+- [ ] Per-component renderers (name, rarity, stats, optional performance block)
+- [ ] Compose-all-then-display pipeline for embed images
+- [ ] Component toggles (performance **off** until Phase 4)
+- [ ] Reference layout: `assets/card/example_template.png` (non-final)
+
+### Phase 4 — Performance engine
+- [ ] Tracksets + per-stat weights + surface modifiers (draft rules)
+- [ ] Weight derivation from trackset; calculator → rating 0–1000+ and class **P/S/A/B/C/D/E/F** (draft bands in [docs/performance-formulas-draft.md](docs/performance-formulas-draft.md))
+- [ ] `/calc-performance` + bulk recalc on formula/weight changes
+- [ ] Workshop: [docs/performance-formulas-draft.md](docs/performance-formulas-draft.md)
+
+### Phase 5 — Collection & profile
+- [ ] Garage, wishlist, settings, profile
+- [ ] `/view-card` using card composer
+- [ ] **Wispbyte prod deployment**
+
+Phases 6+ (economy, upgrades, live races, campaign) — see parent implementation plan.
 
 ---
 
 ## Design principles
 
-- **Sub-1s** interaction latency target for common commands
-- **Modular** layers — avoid monolithic command files
-- **No dev-generated car content** — car metadata is supplied by maintainers later
-- **Future web portability** — domain logic separated from Discord-specific wiring
+- **Sub-1s** interaction latency for common commands
+- **Modular** layers — commands, services, repositories, renderers
+- **No dev-generated car content**
+- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**
+- **Card composition** — car photo base + separate overlay components; each toggleable
+- **Performance in schema** nullable until Phase 4 calculator fills ratings
+- **Multi-pack** — default + themed packs (schema Phase 1; UX Phase 2)
+- **Future web portability** — domain logic isolated from Discord wiring
 
 ---
 
