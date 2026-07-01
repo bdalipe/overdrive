@@ -20,8 +20,6 @@ async function sendInteractionError(interaction, error, label) {
 
     if (interaction.replied || interaction.deferred) {
         await interaction.followUp(payload);
-    } else if (interaction.isButton() && interaction.message) {
-        await interaction.reply(payload);
     } else {
         await interaction.reply(payload);
     }
