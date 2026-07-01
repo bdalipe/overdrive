@@ -1,4 +1,4 @@
-const { getCommandHandlers, getButtonHandlers } = require('../commands');
+const { commandHandlers, buttonHandlers } = require('../commands');
 const { matchesPaginationPrefix } = require('./pagination');
 const { USER_ERROR_MESSAGE } = require('../shared/errors');
 const logger = require('../shared/logger');
@@ -26,11 +26,15 @@ async function sendInteractionError(interaction, error, label) {
 }
 
 async function handleInteraction(interaction, config) {
+    if (!interaction.isChatInputCommand() && !interaction.isButton()) {
+        return;
+    }
+
     const startedAt = metrics.startTimer();
     metrics.logInteractionStart(interaction);
 
     if (interaction.isChatInputCommand()) {
-        const command = getCommandHandlers().get(interaction.commandName);
+        const command = commandHandlers.get(interaction.commandName);
 
         if (!command) {
             logger.warn('unknown_command', { command: interaction.commandName });
@@ -48,7 +52,7 @@ async function handleInteraction(interaction, config) {
     }
 
     if (interaction.isButton()) {
-        const handler = getButtonHandlers().find(({ prefix }) =>
+        const handler = buttonHandlers.find(({ prefix }) =>
             matchesPaginationPrefix(interaction.customId, prefix),
         );
 

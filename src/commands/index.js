@@ -23,20 +23,12 @@ const buttonHandlers = [
     },
 ];
 
-function getCommandHandlers() {
-    return commandHandlers;
-}
-
-function getButtonHandlers() {
-    return buttonHandlers;
-}
-
 function getCommandDefinitions() {
     return commandDefinitions.map((command) => command.toJSON());
 }
 
 module.exports = {
-    getCommandHandlers,
-    getButtonHandlers,
+    commandHandlers,
+    buttonHandlers,
     getCommandDefinitions,
 };

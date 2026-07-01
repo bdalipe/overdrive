@@ -4,6 +4,7 @@ const {
 } = require('../interactions/pagination');
 const { buildOpenPackEmbed } = require('../renderers/embeds');
 
+// Button custom IDs omit hyphens; slash command name is `open-pack`.
 const PAGINATION_PREFIX = 'openpack';
 const TOTAL_SLOTS = 5;
 

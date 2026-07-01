@@ -99,8 +99,6 @@ async function handlePaginationInteraction(interaction, { pages, customIdPrefix,
 
 module.exports = {
     buildPaginatedPayload,
-    buildPaginationButtons,
     handlePaginationInteraction,
     matchesPaginationPrefix,
-    parsePaginationCustomId,
 };

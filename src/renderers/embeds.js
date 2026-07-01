@@ -1,10 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
+const { EMBED_COLOR_PACK, EMBED_COLOR_PRIMARY } = require('../shared/theme');
 
 function buildHelloEmbed(botEnv) {
     return new EmbedBuilder()
         .setTitle('Overdrive!')
         .setDescription('Welcome — the bot is online and ready.')
-        .setColor(0x5865f2)
+        .setColor(EMBED_COLOR_PRIMARY)
         .addFields({
             name: 'Environment',
             value: botEnv,
@@ -16,7 +17,7 @@ function buildOpenPackEmbed({ slot, totalSlots }) {
     return new EmbedBuilder()
         .setTitle('Open Pack')
         .setDescription(`Card slot ${slot} — coming soon`)
-        .setColor(0xf1c40f)
+        .setColor(EMBED_COLOR_PACK)
         .setFooter({ text: `Slot ${slot} of ${totalSlots}` });
 }
 
