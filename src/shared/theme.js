@@ -1,0 +1,7 @@
+const EMBED_COLOR_PRIMARY = 0x5865f2;
+const EMBED_COLOR_PACK = 0xf1c40f;
+
+module.exports = {
+    EMBED_COLOR_PRIMARY,
+    EMBED_COLOR_PACK,
+};

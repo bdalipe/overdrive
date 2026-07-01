@@ -1,4 +1,9 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+    PACK_OWNERSHIP_DENIED_MESSAGE,
+    USER_ERROR_MESSAGE,
+} = require('../shared/errors');
+const logger = require('../shared/logger');
 
 const CUSTOM_ID_PATTERN = /^(?<prefix>[^:]+):(?<action>prev|next):(?<page>\d+)$/;
 
@@ -60,16 +65,24 @@ function resolvePageFromButton(action, currentPage, totalPages) {
 async function handlePaginationInteraction(interaction, { pages, customIdPrefix, buildPageEmbed }) {
     const parsed = parsePaginationCustomId(interaction.customId);
     if (!parsed || parsed.prefix !== customIdPrefix) {
-        return false;
+        logger.warn('pagination_parse_failed', {
+            customId: interaction.customId,
+            customIdPrefix,
+        });
+        await interaction.reply({
+            content: USER_ERROR_MESSAGE,
+            ephemeral: true,
+        });
+        return;
     }
 
     const openerId = interaction.message?.interaction?.user?.id;
     if (openerId && openerId !== interaction.user.id) {
         await interaction.reply({
-            content: 'Hands off! This is not your pack...',
+            content: PACK_OWNERSHIP_DENIED_MESSAGE,
             ephemeral: true,
         });
-        return true;
+        return;
     }
 
     const totalPages = pages.length;
@@ -82,13 +95,10 @@ async function handlePaginationInteraction(interaction, { pages, customIdPrefix,
     });
 
     await interaction.update(payload);
-    return true;
 }
 
 module.exports = {
     buildPaginatedPayload,
-    buildPaginationButtons,
     handlePaginationInteraction,
     matchesPaginationPrefix,
-    parsePaginationCustomId,
 };

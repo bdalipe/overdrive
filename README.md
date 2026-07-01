@@ -210,7 +210,8 @@ Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.
 ### Changelog discipline
 
 - Add entries under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) as features merge to `develop`.
-- When CI bumps the version, move `[Unreleased]` into a dated `## [X.Y.Z]` section and update the **Version** line at the top of this README.
+- The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`package.json` only** (and creates a version tag). It does **not** edit CHANGELOG or this README.
+- After CI bumps the version, maintainers manually move `[Unreleased]` into a dated `## [X.Y.Z]` section in CHANGELOG and update the **Version** line at the top of this README (or automate that in a follow-up workflow).
 
 ### Automated bumps (merge to `develop`)
 

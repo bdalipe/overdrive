@@ -7,5 +7,6 @@ async function execute(interaction, config) {
 
 module.exports = {
     name: 'hello',
+    description: 'Say hello to Overdrive!',
     execute,
 };
