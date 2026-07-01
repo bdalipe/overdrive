@@ -12,6 +12,11 @@ Apply **one** label to this PR before merging:
 
 If no label is set, the version bump workflow defaults to **patch**.
 
+## Changelog
+
+- [ ] Added entries under `## [Unreleased]` in [CHANGELOG.md](../CHANGELOG.md) for user-visible changes
+- [ ] README updated if commands, setup, or roadmap changed (version line is updated by CI or follow-up commit)
+
 ## Checklist
 
 - [ ] Tested locally (`npm run dev` or `npm run dev:register`)
