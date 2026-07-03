@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.1.0` (M0 complete — Phase 1 next)
+**Version:** `0.1.2` (M0 complete — Phase 1 schema scaffolding; next release `0.1.3` on merge to `develop`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | Not started |
+| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **In progress** — schema & catalog scaffolding |
 | **2** — Pack definitions | M2: themed packs (admin create/configure), user pack picker (15–20 packs) | Not started |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -78,12 +78,27 @@ cp .env.example .env
 | `DISCORD_BOT_TOKEN` or `TOKEN` | Yes | Bot token from Developer Portal |
 | `DISCORD_CLIENT_ID` | For registration | Application ID (General Information) |
 | `DISCORD_GUILD_ID` | Recommended in dev | Test server ID — guild commands update instantly |
+| `SUPABASE_URL` | Phase 1+ (DB-backed commands) | Project URL from Supabase → Project Settings → API (`https://<ref>.supabase.co`) |
+| `SUPABASE_SECRET_KEY` | Phase 1+ (DB-backed commands) | Secret / service-role key (server-side only; never commit). Legacy alias: `SUPABASE_SERVICE_ROLE_KEY` |
 
-Optional: use `.env.dev` / `.env.prod` for separate files per environment. `loadEnv()` reads `.env.{BOT_ENV}` first, then `.env`.
+Optional: use `.env.dev` / `.env.prod` for separate files per environment. `loadEnv()` reads `.env.{BOT_ENV}` first, then `.env`. See [`.env.example`](.env.example) for the full template.
 
-**Never commit `.env` or real tokens.**
+**Never commit `.env` or real tokens / Supabase secret keys.**
 
-### 3. Register slash commands
+Bot boot does **not** require Supabase credentials yet (`/hello` and placeholder `/open-pack` work without them). `createSupabaseClient` in `src/shared/supabase.js` validates URL + secret when repositories call it.
+
+### 3. Supabase (Phase 1+)
+
+Apply schema migrations to your linked project (dev is enough until prod goes live):
+
+1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and run `supabase login`.
+2. From the repo root: `supabase link --project-ref <your-project-ref>`.
+3. Apply migrations: `supabase db push`.
+4. Copy **Project URL** and **secret** (or legacy **service_role**) key from Project Settings → API into `.env` / `.env.dev` as `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
+
+Migrations live under `supabase/migrations/`. Catalog import scripts (`scripts/import-cars.js`, `scripts/seed-stubs.js`) are **planned** — not in the repo yet; see `data/catalog/drops/README.md` for the drop format.
+
+### 4. Register slash commands
 
 Guild-scoped (recommended for development):
 
@@ -99,7 +114,7 @@ BOT_ENV=dev npm run register-commands
 
 Re-run registration when you **add, rename, or change options** on a slash command. Handler-only changes do not require re-registration.
 
-### 4. Run the bot
+### 5. Run the bot
 
 **Local development (auto-restart on save):**
 
@@ -149,7 +164,10 @@ src/
 ├── commands/             # Slash command handlers + registry
 ├── interactions/         # Router, pagination, pack picker (Phase 2+)
 ├── renderers/            # Embeds; card/ components (Phase 3+)
-└── shared/               # Config, logger, metrics, errors
+└── shared/               # Config, logger, metrics, errors, supabase client helper
+data/catalog/             # Manifest + drops README (Phase 1+; drop JSON often local)
+scripts/                  # Planned: import-cars.js, seed-stubs.js (not committed yet)
+supabase/migrations/      # Schema migrations (supabase db push)
 assets/card/              # Reference sketch + future card art
 docs/                     # Draft specs (e.g. performance formulas)
 ```
@@ -199,7 +217,7 @@ Production hosting uses **Wispbyte** Discord bot hosting (Tier 1 or higher recom
 | `develop` | Integration and testing |
 | `feature/*` | Short-lived work merged into `develop` |
 
-PRs into `develop` should include a **version label** and update **[CHANGELOG.md](CHANGELOG.md)**.
+PRs into `develop` must include a **version label** and a **synced README + CHANGELOG** (see below).
 
 ---
 
@@ -207,11 +225,23 @@ PRs into `develop` should include a **version label** and update **[CHANGELOG.md
 
 Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.x.y` during Phases 0–5).
 
-### Changelog discipline
+### README & CHANGELOG discipline (mandatory)
 
-- Add entries under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) as features merge to `develop`.
-- The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`package.json` only** (and creates a version tag). It does **not** edit CHANGELOG or this README.
-- After CI bumps the version, maintainers manually move `[Unreleased]` into a dated `## [X.Y.Z]` section in CHANGELOG and update the **Version** line at the top of this README (or automate that in a follow-up workflow).
+The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`package.json` only** (and creates a version tag). It does **not** edit CHANGELOG or this README. Authors sync docs on the **feature branch before** the PR.
+
+**During feature work:** update README whenever setup, env vars, commands, structure, or roadmap change. Prefer keeping `[Unreleased]` notes current on long branches.
+
+**Before every `feature/*` → `develop` PR:**
+
+1. Choose the **target version** CI will produce (e.g. patch from `0.1.2` → `0.1.3`).
+2. Set `package.json` to the **pre-bump** base so the labeled bump lands on the target.
+3. Add a dated `## [X.Y.Z]` section in [CHANGELOG.md](CHANGELOG.md) for that **target** version (move items out of `[Unreleased]`). Document skipped versions if CI previously failed.
+4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
+5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
+
+Example (schema branch): `package.json` = `0.1.2`, CHANGELOG `## [0.1.3]`, label `version:patch`.
+
+After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
 ### Automated bumps (merge to `develop`)
 
@@ -233,10 +263,16 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Dev/prod config + local dev workflow
 
 ### Phase 1 — Pack simulator
-- [ ] Nullable car schema + **Unavailable** / **N/A** display
-- [ ] Multi-pack DB schema + default pack
+- [x] Multi-pack DB schema + default pack (`100000`)
+- [x] **6-digit serial IDs** (100000–999999) for cars and packs (app assigns with collision retry)
+- [x] Persistent **pack mutations** schema (guarantee / bonus % with optional rarity gate)
+- [x] Catalog layout: `data/catalog/manifest.json` + drops README
+- [x] Supabase client helper (`shared/supabase.js`) + `loadEnv` Supabase fields
+- [ ] Catalog import scripts (`scripts/import-cars.js`, `seed-stubs.js` — planned)
+- [ ] Nullable car display: **Unavailable** / **N/A** formatters
 - [ ] Weighted default-pack opens + stats events
 - [ ] Text embed pack reveal (composed cards in Phase 3)
+- [ ] Admin pack edit / mutations list & remove
 
 ### Phase 2 — Pack definitions
 - [ ] Admin themed-pack create/configure/disable
@@ -268,11 +304,23 @@ Phases 6+ (economy, upgrades, live races, campaign) — see parent implementatio
 - **Sub-1s** interaction latency for common commands
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
-- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**
+- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
+- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import
+- **Pack mutations** — admin guarantee/bonus rules persist until changed or removed; `100%` = guarantee; bonus % applies after `rarity_gate` slot (e.g. true P = P(6★)×P(bonus|6★))
+- **Catalog import** — versioned JSON drops in `data/catalog/drops/`; `manifest.json` tracks applied vs pending per import run
 - **Card composition** — car photo base + separate overlay components; each toggleable
 - **Performance in schema** nullable until Phase 4 calculator fills ratings
 - **Multi-pack** — default + themed packs (schema Phase 1; UX Phase 2)
 - **Future web portability** — domain logic isolated from Discord wiring
+
+### Catalog import (maintainers)
+
+Layout and drop format are in place; **import scripts are not committed yet**.
+
+1. Add a drop file under `data/catalog/drops/` (see `data/catalog/drops/README.md`).
+2. List new filenames in `manifest.json` → `pending` (or let the import script discover unapplied drops).
+3. Run `node scripts/import-cars.js` (planned) — upserts cars, updates manifest `applied` / `pending` / `lastUpdated`.
+4. Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
 ---
 

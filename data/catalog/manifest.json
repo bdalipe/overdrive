@@ -1,0 +1,6 @@
+{
+  "applied": [],
+  "pending": [],
+  "lastUpdated": null,
+  "notes": "Updated by scripts/import-cars.js (planned) on each import. Use manifest.{BOT_ENV}.json locally if dev and prod catalogs diverge."
+}
