@@ -16,11 +16,16 @@ function loadEnv() {
         );
     }
 
+    const supabaseSecretKey =
+        process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
     return {
         botEnv,
         token,
         clientId: process.env.DISCORD_CLIENT_ID,
         guildId: process.env.DISCORD_GUILD_ID,
+        supabaseUrl: process.env.SUPABASE_URL,
+        supabaseSecretKey,
     };
 }
 
