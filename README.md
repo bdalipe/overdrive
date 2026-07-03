@@ -150,6 +150,9 @@ src/
 ├── interactions/         # Router, pagination, pack picker (Phase 2+)
 ├── renderers/            # Embeds; card/ components (Phase 3+)
 └── shared/               # Config, logger, metrics, errors
+data/catalog/             # JSON content drops + import manifest (Phase 1+)
+scripts/                  # import-cars.js, seed-stubs.js (Phase 1+)
+supabase/migrations/      # Schema migrations (db push)
 assets/card/              # Reference sketch + future card art
 docs/                     # Draft specs (e.g. performance formulas)
 ```
@@ -234,7 +237,10 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 
 ### Phase 1 — Pack simulator
 - [ ] Nullable car schema + **Unavailable** / **N/A** display
-- [ ] Multi-pack DB schema + default pack
+- [ ] **6-digit serial IDs** (100000–999999) for cars and packs; collision retry on insert
+- [ ] Multi-pack DB schema + default pack (`100000`)
+- [ ] Persistent **pack mutations** (guarantee / bonus % with optional rarity gate)
+- [ ] Catalog import: JSON content drops + `data/catalog/manifest.json`
 - [ ] Weighted default-pack opens + stats events
 - [ ] Text embed pack reveal (composed cards in Phase 3)
 
@@ -268,11 +274,21 @@ Phases 6+ (economy, upgrades, live races, campaign) — see parent implementatio
 - **Sub-1s** interaction latency for common commands
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
-- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**
+- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
+- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import
+- **Pack mutations** — admin guarantee/bonus rules persist until changed or removed; `100%` = guarantee; bonus % applies after `rarity_gate` slot (e.g. true P = P(6★)×P(bonus|6★))
+- **Catalog import** — versioned JSON drops in `data/catalog/drops/`; `manifest.json` tracks applied vs pending per import run
 - **Card composition** — car photo base + separate overlay components; each toggleable
 - **Performance in schema** nullable until Phase 4 calculator fills ratings
 - **Multi-pack** — default + themed packs (schema Phase 1; UX Phase 2)
 - **Future web portability** — domain logic isolated from Discord wiring
+
+### Catalog import (maintainers)
+
+1. Add a drop file under `data/catalog/drops/` (see `data/catalog/drops/README.md`).
+2. List new filenames in `manifest.json` → `pending` (or let the import script discover unapplied drops).
+3. Run `node scripts/import-cars.js` (Phase 1+) — upserts cars, updates manifest `applied` / `pending` / `lastUpdated`.
+4. Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
 ---
 

@@ -9,13 +9,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Planned
-- Phase 1: Supabase schema, Unavailable/N/A display, default-pack simulator, multi-pack DB architecture
+- Phase 1: Supabase schema (6-digit car/pack IDs), persistent pack mutations, catalog import drops + manifest, Unavailable/N/A display, default-pack simulator
 - Phase 2: Themed pack admin + user pack picker (15–20 pack UX)
 - Phase 3: Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
+### Added
+- Phase 1 Supabase migrations: 6-digit serial IDs (`100000`–`999999`), `pack_mutations` (persistent guarantee/bonus %), catalog layout (`data/catalog/`)
+
 ### Documentation
+- Schema/design: random 6-digit IDs with collision retry; pack mutations persist until admin remove (`100%` = guarantee; bonus % gated by rarity slot)
+- Catalog import: JSON content drops + `manifest.json` (applied/pending tracking)
 - Expanded roadmap to Phases 0–5: card composition (Phase 3) and performance engine (Phase 4) before collection
 - Added `assets/card/example_template.png` (non-final layout reference)
 - Added `docs/performance-formulas-draft.md` for Phase 4 formula workshopping
