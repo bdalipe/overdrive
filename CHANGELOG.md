@@ -15,6 +15,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
+### Deferred (cleanup audit follow-ups)
+- Wire `createSupabaseClient` at bot boot and fail fast when DB-backed commands ship (CLN-002, CLN-003)
+- Add `scripts/import-cars.js` and `scripts/seed-stubs.js` with catalog import (CLN-005 code path)
+- Metrics start/complete for modals/autocomplete when those interaction types are added (CLN-011)
+- Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
+- Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
 ---
 
 ## [0.1.3] - 2026-07-03
@@ -29,6 +36,9 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 - `@supabase/supabase-js` dependency
 - `src/shared/supabase.js` — `createSupabaseClient` (validates credentials on use; not required at bot boot yet)
 - `loadEnv()` exposes `supabaseUrl` and `supabaseSecretKey` (`SUPABASE_SECRET_KEY`, with legacy `SUPABASE_SERVICE_ROLE_KEY` alias)
+
+### Fixed
+- Unknown slash commands and unmatched buttons reply with an ephemeral message instead of timing out silently
 
 ### Documentation
 - README: Supabase env vars, Phase 1 setup (`supabase link` / `db push`), Phase 1 status in progress, planned `scripts/` paths

@@ -1,8 +1,21 @@
 const { commandHandlers, buttonHandlers } = require('../commands');
 const { matchesPaginationPrefix } = require('./pagination');
-const { USER_ERROR_MESSAGE } = require('../shared/errors');
+const {
+    USER_ERROR_MESSAGE,
+    UNKNOWN_INTERACTION_MESSAGE,
+} = require('../shared/errors');
 const logger = require('../shared/logger');
 const metrics = require('../shared/metrics');
+
+async function replyEphemeral(interaction, content) {
+    const payload = { content, ephemeral: true };
+
+    if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+    } else {
+        await interaction.reply(payload);
+    }
+}
 
 async function sendInteractionError(interaction, error, label) {
     logger.error('interaction_failed', {
@@ -13,16 +26,7 @@ async function sendInteractionError(interaction, error, label) {
         stack: error.stack,
     });
 
-    const payload = {
-        content: USER_ERROR_MESSAGE,
-        ephemeral: true,
-    };
-
-    if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload);
-    } else {
-        await interaction.reply(payload);
-    }
+    await replyEphemeral(interaction, USER_ERROR_MESSAGE);
 }
 
 async function handleInteraction(interaction, config) {
@@ -38,6 +42,7 @@ async function handleInteraction(interaction, config) {
 
         if (!command) {
             logger.warn('unknown_command', { command: interaction.commandName });
+            await replyEphemeral(interaction, UNKNOWN_INTERACTION_MESSAGE);
             return;
         }
 
@@ -58,6 +63,7 @@ async function handleInteraction(interaction, config) {
 
         if (!handler) {
             logger.warn('unknown_button', { customId: interaction.customId });
+            await replyEphemeral(interaction, UNKNOWN_INTERACTION_MESSAGE);
             return;
         }
 
