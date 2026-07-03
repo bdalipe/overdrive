@@ -7,7 +7,7 @@ function assertSupabaseConfig(config) {
     if (!url || !key) {
         throw new Error(
             'Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_SECRET_KEY '
-            + 'in .env or .env.{BOT_ENV}.',
+            + '(or legacy SUPABASE_SERVICE_ROLE_KEY) in .env or .env.{BOT_ENV}.',
         );
     }
 
