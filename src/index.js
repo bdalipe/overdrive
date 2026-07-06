@@ -23,6 +23,8 @@ client.once(Events.ClientReady, (readyClient) => {
     logger.info('bot_online', {
         username: readyClient.user.tag,
         botEnv: config.botEnv,
+        supabaseConfigured: true,
+        repositoriesReady: true,
     });
 });
 
