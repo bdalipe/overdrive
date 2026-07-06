@@ -170,6 +170,53 @@ function createStubCar({ id, rarity, performance = null } = {}) {
     return car;
 }
 
+/**
+ * Normalize a catalog drop or patch object for DB upsert.
+ * Syncs numeric value + *_status via setNumericStat; preserves explicit status-only fields.
+ */
+function normalizeCarForDb(input) {
+    if (input.rarity == null) {
+        throw new Error('normalizeCarForDb requires rarity');
+    }
+
+    const car = {
+        id: input.id ?? undefined,
+        rarity: input.rarity,
+        performance: input.performance ?? null,
+        performance_class: input.performance_class ?? null,
+        make: input.make ?? null,
+        model: input.model ?? null,
+        drive_type: input.drive_type ?? null,
+        tyre_type: input.tyre_type ?? null,
+        body_style: input.body_style ?? null,
+        country: input.country ?? null,
+        model_year: input.model_year ?? null,
+        tag: input.tag ?? null,
+        description: input.description ?? null,
+        image_url: input.image_url ?? null,
+    };
+
+    for (const field of Object.keys(NUMERIC_STATS)) {
+        const statusKey = NUMERIC_STATS[field].statusKey;
+        const explicitStatus = input[statusKey];
+
+        if (explicitStatus === STAT_STATUS.NOT_APPLICABLE) {
+            setNumericStat(car, field, null, STAT_STATUS.NOT_APPLICABLE);
+            continue;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(input, field)
+            || Object.prototype.hasOwnProperty.call(input, statusKey)) {
+            setNumericStat(car, field, input[field] ?? null, explicitStatus);
+            continue;
+        }
+
+        setNumericStat(car, field, null);
+    }
+
+    return car;
+}
+
 module.exports = {
     STAT_STATUS,
     DISPLAY_UNAVAILABLE,
@@ -179,4 +226,5 @@ module.exports = {
     formatStat,
     formatDisplayName,
     createStubCar,
+    normalizeCarForDb,
 };

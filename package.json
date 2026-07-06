@@ -6,7 +6,9 @@
     "start": "node src/index.js",
     "register-commands": "node src/register-commands.js",
     "dev": "node --watch src/index.js",
-    "dev:register": "npm run register-commands && npm run dev"
+    "dev:register": "npm run register-commands && npm run dev",
+    "import-cars": "node scripts/import-cars.js",
+    "seed-stubs": "node scripts/seed-stubs.js"
   },
   "keywords": [],
   "author": "",
