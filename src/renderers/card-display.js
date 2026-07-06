@@ -45,7 +45,23 @@ function buildCardDisplay(car) {
 }
 
 /**
- * Discord embed field list for a card (text-only reveal path).
+ * Pack reveal embed title: `Year Make Model (★★★)` — e.g. `2004 Porsche 911 (★★★)`.
+ * Omits year when unavailable; rarity in parentheses. Phase 1–2 interim UX until Phase 3 card template.
+ */
+function formatPackRevealTitle(car) {
+    const displayName = formatDisplayName(car);
+    const year = formatStat(car, 'model_year');
+    const yearPrefix =
+        year === 'Unavailable' || year === 'N/A' ? '' : `${year} `;
+    const stars = formatRarityStars(car.rarity);
+    const raritySuffix =
+        stars === 'Unavailable' ? ' (Unavailable)' : ` (${stars})`;
+
+    return `${yearPrefix}${displayName}${raritySuffix}`;
+}
+
+/**
+ * Discord embed field list for a card (reserved for debug/admin or Phase 3+; not used in Phase 1–2 pack reveal).
  */
 function buildCardEmbedFields(car) {
     const display = buildCardDisplay(car);
@@ -70,6 +86,7 @@ function buildCardEmbedFields(car) {
 
 module.exports = {
     formatRarityStars,
+    formatPackRevealTitle,
     buildCardDisplay,
     buildCardEmbedFields,
 };

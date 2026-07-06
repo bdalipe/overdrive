@@ -1,5 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
-const { EMBED_COLOR_PACK, EMBED_COLOR_PRIMARY } = require('../shared/theme');
+const { EMBED_COLOR_PRIMARY } = require('../shared/theme');
+
+/**
+ * Lightweight Discord embed builders for simple or admin/diagnostic commands
+ * (`/hello`, `/admin debug-latency` ping/timing probes, etc.).
+ * Pack reveal uses `pack-reveal.js`; composed cards use `renderers/card/` (Phase 3+).
+ */
 
 function buildHelloEmbed(botEnv) {
     return new EmbedBuilder()
@@ -13,15 +19,6 @@ function buildHelloEmbed(botEnv) {
         });
 }
 
-function buildOpenPackEmbed({ slot, totalSlots }) {
-    return new EmbedBuilder()
-        .setTitle('Open Pack')
-        .setDescription(`Card slot ${slot} — coming soon`)
-        .setColor(EMBED_COLOR_PACK)
-        .setFooter({ text: `Slot ${slot} of ${totalSlots}` });
-}
-
 module.exports = {
     buildHelloEmbed,
-    buildOpenPackEmbed,
 };
