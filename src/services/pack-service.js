@@ -1,5 +1,6 @@
 const { randomInt } = require('crypto');
 const { createDropRateService, rollRarity } = require('./drop-rate-service');
+const { createPackConfigCache } = require('./pack-config-cache');
 const { RESERVED_DEFAULT_PACK_ID } = require('../shared/generate-serial-id');
 const logger = require('../shared/logger');
 
@@ -143,29 +144,46 @@ function sortCardsByRarity(cards) {
     return [...cards].sort((a, b) => a.rarity - b.rarity);
 }
 
-function createPackService({ packs, cars, dropRateService }) {
+function createPackService({ packs, cars, dropRateService, configCache }) {
     const dropRates = dropRateService ?? createDropRateService(packs);
+    const cache = configCache ?? createPackConfigCache();
 
     async function resolvePack(packId) {
         if (packId != null) {
-            const pack = await packs.findById(packId);
-            if (!pack) {
-                throw new Error(`Pack not found: ${packId}`);
-            }
+            return cache.getOrLoad(`pack:${packId}`, async () => {
+                const pack = await packs.findById(packId);
+                if (!pack) {
+                    throw new Error(`Pack not found: ${packId}`);
+                }
 
-            if (!pack.is_active) {
-                throw new Error(`Pack is not active: ${packId}`);
-            }
+                if (!pack.is_active) {
+                    throw new Error(`Pack is not active: ${packId}`);
+                }
 
-            return pack;
+                return pack;
+            });
         }
 
-        const defaultPack = await packs.findDefault();
-        if (!defaultPack) {
-            throw new Error('No default pack is configured');
-        }
+        return cache.getOrLoad('pack:default', async () => {
+            const defaultPack = await packs.findDefault();
+            if (!defaultPack) {
+                throw new Error('No default pack is configured');
+            }
 
-        return defaultPack;
+            return defaultPack;
+        });
+    }
+
+    async function loadPackConfig(packId) {
+        return cache.getOrLoad(`config:${packId}`, async () => {
+            const [eligibility, mutations, weights] = await Promise.all([
+                packs.getEligibility(packId),
+                packs.getMutations(packId),
+                dropRates.getWeightsForPack(packId),
+            ]);
+
+            return { eligibility, mutations, weights };
+        });
     }
 
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
@@ -176,11 +194,9 @@ function createPackService({ packs, cars, dropRateService }) {
             throw new Error(`Invalid pack size for pack ${pack.id}: ${size}`);
         }
 
-        const [allCars, eligibility, mutations, weights] = await Promise.all([
+        const [allCars, { eligibility, mutations, weights }] = await Promise.all([
             cars.listAll(),
-            packs.getEligibility(pack.id),
-            packs.getMutations(pack.id),
-            dropRates.getWeightsForPack(pack.id),
+            loadPackConfig(pack.id),
         ]);
 
         const eligibleCars = resolveEligibleCars(allCars, eligibility);
@@ -248,6 +264,9 @@ function createPackService({ packs, cars, dropRateService }) {
     return {
         generatePack,
         resolvePack,
+        loadPackConfig,
+        invalidatePackConfig: (id) => cache.invalidatePack(id),
+        clearPackConfigCache: () => cache.clear(),
         RESERVED_DEFAULT_PACK_ID,
     };
 }
