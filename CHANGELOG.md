@@ -9,18 +9,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Planned
-- Phase 1 (remaining): Unavailable/N/A display, default-pack simulator, catalog import scripts, admin pack mutations UX
+- Phase 1 (remaining): default-pack simulator (`pack-service`, `/open-pack` refactor, stats events), admin pack mutations UX
 - Phase 2: Themed pack admin + user pack picker (15–20 pack UX)
 - Phase 3: Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
 ### Deferred (cleanup audit follow-ups)
-- Wire `createSupabaseClient` at bot boot and fail fast when DB-backed commands ship (CLN-002, CLN-003)
-- Add `scripts/import-cars.js` and `scripts/seed-stubs.js` with catalog import (CLN-005 code path)
 - Metrics start/complete for modals/autocomplete when those interaction types are added (CLN-011)
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.1.4] - 2026-07-06
+
+Phase 1 data layer: domain model, repositories, Supabase boot wiring, and catalog maintainer scripts. `package.json` is set to `0.1.3` on this branch so the automated patch bump on merge to `develop` lands at `0.1.4`.
+
+### Added
+- `src/models/car.js` — `formatStat`, `setNumericStat`, `normalizeCarForDb`, `createStubCar` (Unavailable / N/A semantics)
+- `src/renderers/card-display.js` — `buildCardDisplay`, `buildCardEmbedFields`, `formatRarityStars`
+- `src/shared/generate-serial-id.js` — random 6-digit IDs with collision retry (reserves pack `100000`)
+- `src/repositories/` — car, pack, and stats repositories; `createRepositories(supabase)`
+- Bot boot wires `createSupabaseClient` and `repositories` on runtime config (CLN-002, CLN-003)
+- `scripts/import-cars.js`, `scripts/seed-stubs.js`, `scripts/lib/catalog.js` (CLN-005)
+- `npm run import-cars`, `npm run seed-stubs`
+
+### Changed
+- Bot startup now requires `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (fail fast before Discord login)
+- `register-commands.js` remains DB-free
+
+### Documentation
+- README: data-layer status, project structure, Supabase required at boot, catalog scripts, Phase 1 roadmap checkboxes
 
 ---
 
@@ -70,6 +90,7 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 - README development status, setup, versioning, and phased roadmap
 - Implementation plans: stat display semantics, multi-pack model, phased card composition and performance engine
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.3...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.4...develop
+[0.1.4]: https://github.com/bdalipe/overdrive/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bdalipe/overdrive/compare/v0.1.0...v0.1.3
 [0.1.0]: https://github.com/bdalipe/overdrive/releases/tag/v0.1.0

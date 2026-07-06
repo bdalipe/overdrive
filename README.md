@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.1.2` (M0 complete — Phase 1 schema scaffolding; next release `0.1.3` on merge to `develop`)
+**Version:** `0.1.3` (Phase 1 data layer shipped; target `0.1.4` on merge to `develop` with `version:patch`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` placeholder, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **In progress** — schema & catalog scaffolding |
+| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **In progress** — data layer complete; pack simulator next |
 | **2** — Pack definitions | M2: themed packs (admin create/configure), user pack picker (15–20 packs) | Not started |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -25,7 +25,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 
 | Item | Status |
 |------|--------|
-| Modular project structure (`commands/`, `interactions/`, `renderers/`, `shared/`) | Done |
+| Modular project structure (`commands/`, `interactions/`, `renderers/`, `shared/`; expanded in Phase 1 with `models/`, `repositories/`, `scripts/`) | Done |
 | Slash commands (message-based handler removed) | Done |
 | Environment-aware config (`BOT_ENV`, dev/prod-ready) | Done |
 | `/hello` command | Done |
@@ -36,6 +36,17 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `/open-pack` placeholder pagination (5 slots, Prev/Next) | Done |
 | Prod-ready runtime config (`BOT_ENV`, `.env.prod` pattern) | Done |
 | Local dev workflow for testing (`npm run dev`, dev bot + test guild) | Done |
+
+### Phase 1 data-layer checklist
+
+| Item | Status |
+|------|--------|
+| Supabase migrations + default pack seed | Done |
+| `models/car.js` + `renderers/card-display.js` (Unavailable / N/A) | Done |
+| `repositories/` + Supabase wired at bot boot | Done |
+| `generate-serial-id.js`, `import-cars`, `seed-stubs` | Done |
+| `pack-service` + real `/open-pack` reveal | Pending (`feature/p1-pack-simulator`) |
+| Default-pack admin commands | Pending (`feature/p1-admin-default-pack`) |
 
 **Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 5** (after M5). Phases 0–4 use the **dev bot on your PC**.
 
@@ -78,14 +89,14 @@ cp .env.example .env
 | `DISCORD_BOT_TOKEN` or `TOKEN` | Yes | Bot token from Developer Portal |
 | `DISCORD_CLIENT_ID` | For registration | Application ID (General Information) |
 | `DISCORD_GUILD_ID` | Recommended in dev | Test server ID — guild commands update instantly |
-| `SUPABASE_URL` | Phase 1+ (DB-backed commands) | Project URL from Supabase → Project Settings → API (`https://<ref>.supabase.co`) |
-| `SUPABASE_SECRET_KEY` | Phase 1+ (DB-backed commands) | Secret / service-role key (server-side only; never commit). Legacy alias: `SUPABASE_SERVICE_ROLE_KEY` |
+| `SUPABASE_URL` | Yes (bot boot) | Project URL from Supabase → Project Settings → API (`https://<ref>.supabase.co`) |
+| `SUPABASE_SECRET_KEY` | Yes (bot boot) | Secret / service-role key (server-side only; never commit). Legacy alias: `SUPABASE_SERVICE_ROLE_KEY` |
 
 Optional: use `.env.dev` / `.env.prod` for separate files per environment. `loadEnv()` reads `.env.{BOT_ENV}` first, then `.env`. See [`.env.example`](.env.example) for the full template.
 
 **Never commit `.env` or real tokens / Supabase secret keys.**
 
-Bot boot does **not** require Supabase credentials yet (`/hello` and placeholder `/open-pack` work without them). `createSupabaseClient` in `src/shared/supabase.js` validates URL + secret when repositories call it.
+Bot boot **requires** Supabase credentials (`SUPABASE_URL` + `SUPABASE_SECRET_KEY`). `createSupabaseClient` runs at startup and attaches `repositories` on the runtime config passed to handlers. `register-commands.js` stays DB-free. Slash commands still use placeholder pack UX until the pack-simulator branch lands; catalog scripts populate the `cars` table separately.
 
 ### 3. Supabase (Phase 1+)
 
@@ -96,7 +107,14 @@ Apply schema migrations to your linked project (dev is enough until prod goes li
 3. Apply migrations: `supabase db push`.
 4. Copy **Project URL** and **secret** (or legacy **service_role**) key from Project Settings → API into `.env` / `.env.dev` as `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
 
-Migrations live under `supabase/migrations/`. Catalog import scripts (`scripts/import-cars.js`, `scripts/seed-stubs.js`) are **planned** — not in the repo yet; see `data/catalog/drops/README.md` for the drop format.
+Migrations live under `supabase/migrations/`. After `db push`, seed a dev catalog:
+
+```bash
+npm run seed-stubs              # sparse stubs (optional: -- --count 50)
+npm run import-cars             # apply pending drops from data/catalog/drops/
+```
+
+See `data/catalog/drops/README.md` for drop JSON format and manifest workflow.
 
 ### 4. Register slash commands
 
@@ -144,6 +162,8 @@ npm start
 | `npm run dev` | Run bot with `node --watch` — restarts on file save |
 | `npm run register-commands` | Push slash command definitions to Discord (uses `BOT_ENV`) |
 | `npm run dev:register` | Register commands, then start dev watch mode |
+| `npm run import-cars` | Apply catalog JSON drops to Supabase; update manifest |
+| `npm run seed-stubs` | Insert sparse stub cars for dev (`--count` optional) |
 
 ### When to re-register vs restart
 
@@ -159,14 +179,16 @@ npm start
 
 ```
 src/
-├── index.js              # Client bootstrap, event wiring
-├── register-commands.js  # One-off slash command registration (REST)
+├── index.js              # Client bootstrap, Supabase + repositories on runtime config
+├── register-commands.js  # One-off slash command registration (REST; no DB)
 ├── commands/             # Slash command handlers + registry
 ├── interactions/         # Router, pagination, pack picker (Phase 2+)
-├── renderers/            # Embeds; card/ components (Phase 3+)
-└── shared/               # Config, logger, metrics, errors, supabase client helper
-data/catalog/             # Manifest + drops README (Phase 1+; drop JSON often local)
-scripts/                  # Planned: import-cars.js, seed-stubs.js (not committed yet)
+├── models/               # Domain models (car stat display + import normalization)
+├── repositories/         # Supabase persistence (cars, packs, stats)
+├── renderers/            # Embeds, card-display.js (card/ components Phase 3+)
+└── shared/               # Config, logger, metrics, errors, supabase, generate-serial-id
+data/catalog/             # manifest.json + drops/ (JSON content drops)
+scripts/                  # import-cars.js, seed-stubs.js, lib/catalog.js
 supabase/migrations/      # Schema migrations (supabase db push)
 assets/card/              # Reference sketch + future card art
 docs/                     # Draft specs (e.g. performance formulas)
@@ -233,13 +255,13 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 
 **Before every `feature/*` → `develop` PR:**
 
-1. Choose the **target version** CI will produce (e.g. patch from `0.1.2` → `0.1.3`).
+1. Choose the **target version** CI will produce (e.g. patch from `0.1.3` → `0.1.4`).
 2. Set `package.json` to the **pre-bump** base so the labeled bump lands on the target.
 3. Add a dated `## [X.Y.Z]` section in [CHANGELOG.md](CHANGELOG.md) for that **target** version (move items out of `[Unreleased]`). Document skipped versions if CI previously failed.
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (schema branch): `package.json` = `0.1.2`, CHANGELOG `## [0.1.3]`, label `version:patch`.
+Example (data-layer branch): `package.json` = `0.1.3`, CHANGELOG `## [0.1.4]`, label `version:patch`.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -268,10 +290,12 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Persistent **pack mutations** schema (guarantee / bonus % with optional rarity gate)
 - [x] Catalog layout: `data/catalog/manifest.json` + drops README
 - [x] Supabase client helper (`shared/supabase.js`) + `loadEnv` Supabase fields
-- [ ] Catalog import scripts (`scripts/import-cars.js`, `seed-stubs.js` — planned)
-- [ ] Nullable car display: **Unavailable** / **N/A** formatters
-- [ ] Weighted default-pack opens + stats events
-- [ ] Text embed pack reveal (composed cards in Phase 3)
+- [x] Repositories (`cars`, `packs`, `stats`) + Supabase wired at bot boot
+- [x] Domain car model + **Unavailable** / **N/A** formatters (`models/car.js`, `renderers/card-display.js`)
+- [x] 6-digit serial ID helper (`shared/generate-serial-id.js`)
+- [x] Catalog import scripts (`scripts/import-cars.js`, `seed-stubs.js`)
+- [ ] Weighted default-pack opens + stats events (`feature/p1-pack-simulator`)
+- [ ] Text embed pack reveal wired to pack-service (composed cards in Phase 3)
 - [ ] Admin pack edit / mutations list & remove
 
 ### Phase 2 — Pack definitions
@@ -306,6 +330,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — see parent implementatio
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import
+- **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice (see cleanup audit CLN-018); until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — admin guarantee/bonus rules persist until changed or removed; `100%` = guarantee; bonus % applies after `rarity_gate` slot (e.g. true P = P(6★)×P(bonus|6★))
 - **Catalog import** — versioned JSON drops in `data/catalog/drops/`; `manifest.json` tracks applied vs pending per import run
 - **Card composition** — car photo base + separate overlay components; each toggleable
@@ -315,12 +340,14 @@ Phases 6+ (economy, upgrades, live races, campaign) — see parent implementatio
 
 ### Catalog import (maintainers)
 
-Layout and drop format are in place; **import scripts are not committed yet**.
+Layout and drop format are documented in `data/catalog/drops/README.md`.
 
-1. Add a drop file under `data/catalog/drops/` (see `data/catalog/drops/README.md`).
-2. List new filenames in `manifest.json` → `pending` (or let the import script discover unapplied drops).
-3. Run `node scripts/import-cars.js` (planned) — upserts cars, updates manifest `applied` / `pending` / `lastUpdated`.
+1. Add a drop file under `data/catalog/drops/`.
+2. List new filenames in `manifest.json` → `pending` (or let `import-cars` discover unapplied drops).
+3. Run `npm run import-cars` — upserts cars, updates manifest `applied` / `pending` / `lastUpdated`.
 4. Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
+
+**Removing cars:** There is no `delete` API on `car-repository` yet. To clear stubs or bad rows today, use the Supabase Table Editor or SQL (e.g. `DELETE FROM cars WHERE …`). A maintainer script (`clear-stubs` / repository `deleteById`) is a **planned** follow-up (cleanup audit CLN-016).
 
 ---
 
