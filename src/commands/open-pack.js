@@ -2,20 +2,24 @@ const {
     buildPaginatedPayload,
     handlePaginationInteraction,
 } = require('../interactions/pagination');
-const { buildPackCardEmbed } = require('../renderers/pack-reveal');
+const {
+    buildPackCardEmbed,
+    buildPackSummaryEmbed,
+    buildRevealPages,
+    isPackSummaryPage,
+} = require('../renderers/pack-reveal');
 const logger = require('../shared/logger');
 
 // Button custom IDs omit hyphens; slash command name is `open-pack`.
 const PAGINATION_PREFIX = 'openpack';
 const SESSION_TTL_MS = 15 * 60 * 1000;
 
-/** @type {Map<string, { cards: object[], packSlug: string, expiresAt: number }>} */
+/** @type {Map<string, { pages: object[], payloads: object[], expiresAt: number }>} */
 const sessions = new Map();
 
-function setSession(userId, { cards, packSlug }) {
+function setSession(userId, session) {
     sessions.set(userId, {
-        cards,
-        packSlug,
+        ...session,
         expiresAt: Date.now() + SESSION_TTL_MS,
     });
 }
@@ -34,18 +38,35 @@ function getSession(userId) {
     return session;
 }
 
-function createBuildPageEmbed(packSlug) {
-    return (car, currentPage, totalPages) =>
-        buildPackCardEmbed(car, { currentPage, totalPages, packSlug });
+function createBuildPageEmbed(packSlug, cards) {
+    return (pageData, currentPage, totalPages) => {
+        if (isPackSummaryPage(pageData)) {
+            return buildPackSummaryEmbed(cards, { currentPage, totalPages, packSlug });
+        }
+
+        return buildPackCardEmbed(pageData, { currentPage, totalPages, packSlug });
+    };
 }
 
-function buildOpenPackPayload(cards, packSlug, currentPage) {
-    return buildPaginatedPayload({
-        pages: cards,
-        currentPage,
-        customIdPrefix: PAGINATION_PREFIX,
-        buildPageEmbed: createBuildPageEmbed(packSlug),
-    });
+function buildRevealPayloads(cards, packSlug) {
+    const pages = buildRevealPages(cards);
+    const buildPageEmbed = createBuildPageEmbed(packSlug, cards);
+    const totalPages = pages.length;
+    const payloads = [];
+
+    for (let page = 1; page <= totalPages; page += 1) {
+        payloads.push(
+            buildPaginatedPayload({
+                pages,
+                currentPage: page,
+                customIdPrefix: PAGINATION_PREFIX,
+                buildPageEmbed,
+                enableSkip: true,
+            }),
+        );
+    }
+
+    return { pages, payloads };
 }
 
 async function execute(interaction, config) {
@@ -55,8 +76,11 @@ async function execute(interaction, config) {
         userId: interaction.user.id,
     });
 
+    const { pages, payloads } = buildRevealPayloads(result.cards, result.packSlug);
+
     setSession(interaction.user.id, {
-        cards: result.cards,
+        pages,
+        payloads,
         packSlug: result.packSlug,
     });
 
@@ -67,7 +91,7 @@ async function execute(interaction, config) {
         packSize: result.packSize,
     });
 
-    await interaction.editReply(buildOpenPackPayload(result.cards, result.packSlug, 1));
+    await interaction.editReply(payloads[0]);
 }
 
 async function handleButton(interaction, _config) {
@@ -83,9 +107,10 @@ async function handleButton(interaction, _config) {
     }
 
     await handlePaginationInteraction(interaction, {
-        pages: session.cards,
+        pages: session.pages,
         customIdPrefix: PAGINATION_PREFIX,
-        buildPageEmbed: createBuildPageEmbed(session.packSlug),
+        enableSkip: true,
+        getPayload: (page) => session.payloads[page - 1],
     });
 }
 

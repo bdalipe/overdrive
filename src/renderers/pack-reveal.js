@@ -1,9 +1,16 @@
 const { EmbedBuilder } = require('discord.js');
-const { getRarityEmbedColor } = require('../shared/theme');
+const { getRarityEmbedColor, EMBED_COLOR_PACK } = require('../shared/theme');
 const { buildCardDisplay, formatPackRevealTitle } = require('./card-display');
+
+/** Sentinel page slot for pack summary (not a car row). */
+const PACK_SUMMARY_PAGE = Symbol('pack-summary');
+
+function sortCardsByRarityDesc(cars) {
+    return [...cars].sort((a, b) => b.rarity - a.rarity);
+}
+
 /**
  * Phase 1–2 interim reveal: title + optional image only (no embed fields).
- * Full stat grid moves to composed card image in Phase 3.
  */
 function buildPackCardEmbed(car, { currentPage, totalPages, packSlug }) {
     const display = buildCardDisplay(car);
@@ -20,6 +27,33 @@ function buildPackCardEmbed(car, { currentPage, totalPages, packSlug }) {
     return embed;
 }
 
+/**
+ * Final reveal page: all pulls as title lines, highest rarity first.
+ */
+function buildPackSummaryEmbed(cards, { currentPage, totalPages, packSlug }) {
+    const sorted = sortCardsByRarityDesc(cards);
+    const lines = sorted.map((car) => formatPackRevealTitle(car));
+
+    return new EmbedBuilder()
+        .setTitle('Pack summary')
+        .setDescription(lines.join('\n'))
+        .setColor(EMBED_COLOR_PACK)
+        .setFooter({ text: `Summary · ${currentPage} of ${totalPages} · ${packSlug}` });
+}
+
+function isPackSummaryPage(pageData) {
+    return pageData === PACK_SUMMARY_PAGE;
+}
+
+function buildRevealPages(cards) {
+    return [...cards, PACK_SUMMARY_PAGE];
+}
+
 module.exports = {
+    PACK_SUMMARY_PAGE,
     buildPackCardEmbed,
+    buildPackSummaryEmbed,
+    buildRevealPages,
+    isPackSummaryPage,
+    sortCardsByRarityDesc,
 };
