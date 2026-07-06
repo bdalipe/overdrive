@@ -1,6 +1,8 @@
 {
-  "applied": [],
+  "applied": [
+    "001-test-image.json"
+  ],
   "pending": [],
-  "lastUpdated": null,
+  "lastUpdated": "2026-07-06T18:20:44.116Z",
   "notes": "Updated by npm run import-cars on each import. Use manifest.{BOT_ENV}.json locally if dev and prod catalogs diverge."
 }
