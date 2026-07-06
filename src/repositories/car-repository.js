@@ -75,12 +75,26 @@ function createCarRepository(supabase) {
         return data ?? [];
     }
 
+    async function listAll() {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .order('id', { ascending: true });
+
+        if (error) {
+            throw wrapRepositoryError('cars.listAll', error);
+        }
+
+        return data ?? [];
+    }
+
     return {
         findById,
         exists,
         upsert,
         upsertMany,
         findByRarity,
+        listAll,
     };
 }
 
