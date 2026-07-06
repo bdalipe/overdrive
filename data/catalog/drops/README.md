@@ -1,6 +1,6 @@
 # Catalog content drops
 
-JSON files in this folder are **content drops** — new cars or patches applied individually via `scripts/import-cars.js` (planned; not committed yet).
+JSON files in this folder are **content drops** — new cars or patches applied via `npm run import-cars` (or `node scripts/import-cars.js`).
 
 ## Drop file format
 
@@ -30,6 +30,6 @@ Each file is a JSON object:
 
 ## Manifest
 
-`data/catalog/manifest.json` tracks which drops have been applied. When implemented, the import script will move filenames from `pending` to `applied` and set `lastUpdated` after a successful run.
+`data/catalog/manifest.json` tracks which drops have been applied. `import-cars` moves filenames from `pending` to `applied` and sets `lastUpdated` after a successful run. Use `manifest.{BOT_ENV}.json` when dev and prod catalogs diverge.
 
 Do not commit proprietary catalog drops to a public repo unless intended.
