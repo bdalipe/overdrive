@@ -9,16 +9,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Planned
-- Phase 1 (remaining): default-pack simulator (`pack-service`, `/open-pack` refactor, stats events), admin pack mutations UX
-- Phase 2: Themed pack admin + user pack picker (15–20 pack UX)
+- Phase 1 admin: pack mutations UX with drop-rate validation (`feature/p1-admin-default-pack`); call `invalidatePackConfig` after edits
+- Phase 2: `car-repository.findEligible`, themed pack admin + user pack picker (15–20 pack UX)
 - Phase 3: Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
 ### Deferred (cleanup audit follow-ups)
 - Metrics start/complete for modals/autocomplete when those interaction types are added (CLN-011)
+- Car delete API / `clear-stubs` maintainer script (CLN-016)
+- Imperial/metric display toggle (CLN-018)
+- Optional automated tests for formatters and import normalization (CLN-019)
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.1.5] - 2026-07-06
+
+Phase 1 pack simulator (M1): weighted pack generation, interim reveal UX, pagination performance, pack config caching, stats events, and image URL fallback. `package.json` is set to `0.1.4` on this branch so the automated patch bump on merge to `develop` lands at `0.1.5`.
+
+### Added
+- `src/services/drop-rate-service.js` — weighted rarity rolls with DB rates + `DEFAULT_RARITY_WEIGHTS` fallback
+- `src/services/pack-service.js` — `generatePack`, eligibility pool (`listAll`), mutation guarantees/bonuses, `loadPackConfig` / `invalidatePackConfig`
+- `src/services/pack-config-cache.js` — in-memory cache (60s TTL) for pack row, drop rates, eligibility, mutations
+- `src/services/pack-stats-events.js` — `buildPackOpenStatsEvents` (`pack_open` + per-card `pull` payloads)
+- `src/services/index.js` — `createServices(repositories)` factory
+- `src/shared/image-url.js` — `isImageUrlReachable`, `applyReachableImageUrls` (HEAD + GET fallback)
+- `src/renderers/pack-reveal.js` — card pages (low→high rarity), summary page (high→low), `formatPackRevealTitle`
+- `src/repositories/car-repository.js` — `listAll()` for default-pack pool
+- `src/shared/theme.js` — `RARITY_EMBED_COLORS` (1★–6★) and `getRarityEmbedColor()`
+- Bot boot wires `createServices` on runtime config; `servicesReady: true` in `bot_online` log
+- `/open-pack` — `deferReply` → `generatePack` → stats insert → paginated reveal with **Skip** (green) to summary
+- Prebuilt Discord payloads per page at open time (Prev/Next/Skip reuse cached embeds + button rows)
+- 15-minute in-memory reveal sessions keyed by opener user id
+- Stats: `stats_events` rows on each open (`pack_open` + `pull` per card); failures logged without blocking reveal
+
+### Changed
+- `/open-pack` no longer uses placeholder embeds; uses `pack-reveal.js` (title + optional `image_url` only until Phase 3)
+- Card footer `Card N of M` counts cards only (summary page excluded from M); summary footer is `Summary · {packSlug}`
+- `src/interactions/pagination.js` — Skip button (`skip` custom ID); optional `getPayload` for prebuilt pages
+- `src/renderers/embeds.js` — module comment: lightweight/admin embeds only (`/hello`, debug latency)
+
+### Documentation
+- README: pack-simulator complete, checklists, Supabase Storage workflow, latency notes, project structure
+- Catalog drops README: `image_url`, full-row upsert warning, Supabase public URLs
+- Cleanup audit trimmed to open/deferred findings only
 
 ---
 
@@ -90,7 +126,8 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 - README development status, setup, versioning, and phased roadmap
 - Implementation plans: stat display semantics, multi-pack model, phased card composition and performance engine
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.4...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.5...develop
+[0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bdalipe/overdrive/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bdalipe/overdrive/compare/v0.1.0...v0.1.3
 [0.1.0]: https://github.com/bdalipe/overdrive/releases/tag/v0.1.0

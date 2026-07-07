@@ -16,6 +16,8 @@ Each file is a JSON object:
       "rarity": 3,
       "make": "Porsche",
       "model": "911",
+      "year": 2024,
+      "image_url": "https://<project-ref>.supabase.co/storage/v1/object/public/car-images/482917.jpg",
       "handling": 88,
       "handling_status": "available",
       "zero_to_sixty_status": "unavailable"
@@ -24,9 +26,15 @@ Each file is a JSON object:
 }
 ```
 
+- **`rarity` is required** on every car (1–6).
 - Omit `id` on new cars to let the import script assign a random 6-digit id in `100000`–`999999` (collision retry; excludes reserved default pack id `100000`).
 - Include `id` in patch drops to upsert existing rows.
 - Set value + `*_status` together (`handling` + `handling_status: "available"`).
+- **`image_url`** — optional public HTTPS URL for pack reveal embeds. Prefer Supabase Storage (public bucket); crop to 16:9 and keep under ~800 KB before upload. Unreachable URLs are omitted at open time (see `src/shared/image-url.js`). See README **Car images (Supabase Storage)**.
+
+### Full-row upsert warning
+
+`import-cars` upserts the **entire car row** from each JSON object. Omitted fields are written as `null` / defaults and can **wipe** existing DB values. Patch drops must include every field you intend to keep, not only the fields you are changing.
 
 ## Manifest
 
