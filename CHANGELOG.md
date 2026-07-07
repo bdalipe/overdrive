@@ -15,13 +15,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
-### Deferred (cleanup audit follow-ups)
-- Metrics start/complete for modals/autocomplete when those interaction types are added (CLN-011)
-- Car delete API / `clear-stubs` maintainer script (CLN-016)
-- Imperial/metric display toggle (CLN-018)
-- Optional automated tests for formatters and import normalization (CLN-019)
+### Deferred
+- Metrics start/complete for modals/autocomplete when those interaction types are added
+- Car delete API / `clear-stubs` maintainer script
+- Imperial/metric display toggle
+- Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.1.6] - 2026-07-07
+
+Phase 1 open-path latency polish. `package.json` is set to `0.1.5` on this branch so the automated patch bump on merge to `develop` lands at `0.1.6`.
+
+### Added
+- `image-url.js` — reachability cache (10 min default TTL); trusted skip for Supabase Storage public object URLs; `clearImageUrlCache()`, `isTrustedSupabaseStorageUrl()`
+- `pack-service.js` — `loadAllCars()` / `invalidateCarPool()` for 60s `listAll` pool cache (shared with pack-config cache)
+- `open-pack.js` — `insertPackOpenStats`; parallel `stats.insertEvents` + `applyReachableImageUrls` after `generatePack`
+
+### Changed
+- Image probe default timeout **5000 → 2000** ms (`IMAGE_PROBE_TIMEOUT_MS`, `IMAGE_PROBE_CACHE_TTL_MS`, `IMAGE_PROBE_FORCE` in `.env.example`)
+
+### Documentation
+- README: latency checklist merged into Phase 1; optional image-probe env vars; design principles updated
 
 ---
 
@@ -54,7 +71,6 @@ Phase 1 pack simulator (M1): weighted pack generation, interim reveal UX, pagina
 ### Documentation
 - README: pack-simulator complete, checklists, Supabase Storage workflow, latency notes, project structure
 - Catalog drops README: `image_url`, full-row upsert warning, Supabase public URLs
-- Cleanup audit trimmed to open/deferred findings only
 
 ---
 
@@ -67,8 +83,8 @@ Phase 1 data layer: domain model, repositories, Supabase boot wiring, and catalo
 - `src/renderers/card-display.js` — `buildCardDisplay`, `buildCardEmbedFields`, `formatRarityStars`
 - `src/shared/generate-serial-id.js` — random 6-digit IDs with collision retry (reserves pack `100000`)
 - `src/repositories/` — car, pack, and stats repositories; `createRepositories(supabase)`
-- Bot boot wires `createSupabaseClient` and `repositories` on runtime config (CLN-002, CLN-003)
-- `scripts/import-cars.js`, `scripts/seed-stubs.js`, `scripts/lib/catalog.js` (CLN-005)
+- Bot boot wires `createSupabaseClient` and `repositories` on runtime config
+- `scripts/import-cars.js`, `scripts/seed-stubs.js`, `scripts/lib/catalog.js`
 - `npm run import-cars`, `npm run seed-stubs`
 
 ### Changed
@@ -124,9 +140,9 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 
 ### Documentation
 - README development status, setup, versioning, and phased roadmap
-- Implementation plans: stat display semantics, multi-pack model, phased card composition and performance engine
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.5...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.6...develop
+[0.1.6]: https://github.com/bdalipe/overdrive/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bdalipe/overdrive/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bdalipe/overdrive/compare/v0.1.0...v0.1.3

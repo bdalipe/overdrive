@@ -4,6 +4,8 @@ const { createPackConfigCache } = require('./pack-config-cache');
 const { RESERVED_DEFAULT_PACK_ID } = require('../shared/generate-serial-id');
 const logger = require('../shared/logger');
 
+const CAR_POOL_CACHE_KEY = 'cars:listAll';
+
 function randomPick(array) {
     if (!array.length) {
         return null;
@@ -186,6 +188,10 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         });
     }
 
+    async function loadAllCars() {
+        return cache.getOrLoad(CAR_POOL_CACHE_KEY, () => cars.listAll());
+    }
+
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
         const pack = await resolvePack(packId);
         const size = packSizeOverride ?? pack.pack_size;
@@ -195,7 +201,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         }
 
         const [allCars, { eligibility, mutations, weights }] = await Promise.all([
-            cars.listAll(),
+            loadAllCars(),
             loadPackConfig(pack.id),
         ]);
 
@@ -265,7 +271,9 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         generatePack,
         resolvePack,
         loadPackConfig,
+        loadAllCars,
         invalidatePackConfig: (id) => cache.invalidatePack(id),
+        invalidateCarPool: () => cache.invalidate(CAR_POOL_CACHE_KEY),
         clearPackConfigCache: () => cache.clear(),
         RESERVED_DEFAULT_PACK_ID,
     };
@@ -273,6 +281,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 
 module.exports = {
     createPackService,
+    CAR_POOL_CACHE_KEY,
     matchesFilter,
     resolveEligibleCars,
     sortCardsByRarity,

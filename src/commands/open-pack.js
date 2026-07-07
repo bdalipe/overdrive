@@ -73,6 +73,17 @@ function buildRevealPayloads(cards, packSlug) {
     return { pages, payloads };
 }
 
+async function insertPackOpenStats(statsRepository, statsEvents, logContext) {
+    try {
+        await statsRepository.insertEvents(statsEvents);
+    } catch (error) {
+        logger.error('pack_stats_insert_failed', {
+            ...logContext,
+            error: error.message,
+        });
+    }
+}
+
 async function execute(interaction, config) {
     await interaction.deferReply();
 
@@ -80,8 +91,15 @@ async function execute(interaction, config) {
         userId: interaction.user.id,
     });
 
-    try {
-        await config.repositories.stats.insertEvents(
+    const statsContext = {
+        userId: interaction.user.id,
+        packId: result.packId,
+        packSlug: result.packSlug,
+    };
+
+    const [, cards] = await Promise.all([
+        insertPackOpenStats(
+            config.repositories.stats,
             buildPackOpenStatsEvents({
                 userId: interaction.user.id,
                 packId: result.packId,
@@ -89,17 +107,11 @@ async function execute(interaction, config) {
                 packSize: result.packSize,
                 cards: result.cards,
             }),
-        );
-    } catch (error) {
-        logger.error('pack_stats_insert_failed', {
-            userId: interaction.user.id,
-            packId: result.packId,
-            packSlug: result.packSlug,
-            error: error.message,
-        });
-    }
+            statsContext,
+        ),
+        applyReachableImageUrls(result.cards),
+    ]);
 
-    const cards = await applyReachableImageUrls(result.cards);
     const droppedImages = result.cards.filter(
         (car, index) => car.image_url && !cards[index].image_url,
     );
