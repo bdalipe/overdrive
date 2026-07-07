@@ -9,6 +9,7 @@ const {
     isPackSummaryPage,
 } = require('../renderers/pack-reveal');
 const logger = require('../shared/logger');
+const { applyReachableImageUrls } = require('../shared/image-url');
 
 // Button custom IDs omit hyphens; slash command name is `open-pack`.
 const PAGINATION_PREFIX = 'openpack';
@@ -39,12 +40,14 @@ function getSession(userId) {
 }
 
 function createBuildPageEmbed(packSlug, cards) {
-    return (pageData, currentPage, totalPages) => {
+    const totalCards = cards.length;
+
+    return (pageData, currentPage) => {
         if (isPackSummaryPage(pageData)) {
-            return buildPackSummaryEmbed(cards, { currentPage, totalPages, packSlug });
+            return buildPackSummaryEmbed(cards, { packSlug });
         }
 
-        return buildPackCardEmbed(pageData, { currentPage, totalPages, packSlug });
+        return buildPackCardEmbed(pageData, { currentPage, totalCards, packSlug });
     };
 }
 
@@ -76,7 +79,20 @@ async function execute(interaction, config) {
         userId: interaction.user.id,
     });
 
-    const { pages, payloads } = buildRevealPayloads(result.cards, result.packSlug);
+    const cards = await applyReachableImageUrls(result.cards);
+    const droppedImages = result.cards.filter(
+        (car, index) => car.image_url && !cards[index].image_url,
+    );
+
+    if (droppedImages.length > 0) {
+        logger.warn('pack_reveal_image_unreachable', {
+            userId: interaction.user.id,
+            packSlug: result.packSlug,
+            carIds: droppedImages.map((car) => car.id),
+        });
+    }
+
+    const { pages, payloads } = buildRevealPayloads(cards, result.packSlug);
 
     setSession(interaction.user.id, {
         pages,

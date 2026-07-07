@@ -12,13 +12,13 @@ function sortCardsByRarityDesc(cars) {
 /**
  * Phase 1–2 interim reveal: title + optional image only (no embed fields).
  */
-function buildPackCardEmbed(car, { currentPage, totalPages, packSlug }) {
+function buildPackCardEmbed(car, { currentPage, totalCards, packSlug }) {
     const display = buildCardDisplay(car);
 
     const embed = new EmbedBuilder()
         .setTitle(formatPackRevealTitle(car))
         .setColor(getRarityEmbedColor(car.rarity))
-        .setFooter({ text: `Card ${currentPage} of ${totalPages} · ${packSlug}` });
+        .setFooter({ text: `Card ${currentPage} of ${totalCards} · ${packSlug}` });
 
     if (display.hasImage) {
         embed.setImage(display.imageUrl);
@@ -30,7 +30,7 @@ function buildPackCardEmbed(car, { currentPage, totalPages, packSlug }) {
 /**
  * Final reveal page: all pulls as title lines, highest rarity first.
  */
-function buildPackSummaryEmbed(cards, { currentPage, totalPages, packSlug }) {
+function buildPackSummaryEmbed(cards, { packSlug }) {
     const sorted = sortCardsByRarityDesc(cards);
     const lines = sorted.map((car) => formatPackRevealTitle(car));
 
@@ -38,7 +38,7 @@ function buildPackSummaryEmbed(cards, { currentPage, totalPages, packSlug }) {
         .setTitle('Pack summary')
         .setDescription(lines.join('\n'))
         .setColor(EMBED_COLOR_PACK)
-        .setFooter({ text: `Summary · ${currentPage} of ${totalPages} · ${packSlug}` });
+        .setFooter({ text: `Summary · ${packSlug}` });
 }
 
 function isPackSummaryPage(pageData) {
