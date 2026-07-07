@@ -3,6 +3,10 @@ const { getCommandDefinitions } = require('./commands');
 const { loadEnv } = require('./shared/config');
 const logger = require('./shared/logger');
 
+/**
+ * Pushes slash command definitions from `commands/index.js` (including `/admin` subcommands).
+ * Re-run after adding or changing command names, groups, or options.
+ */
 async function registerCommands() {
     const config = loadEnv();
 
