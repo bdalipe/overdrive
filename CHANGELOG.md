@@ -10,16 +10,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Planned
 - Phase 1 admin: pack mutations UX with drop-rate validation (`feature/p1-admin-default-pack`); call `invalidatePackConfig` after edits
+- Phase 1 latency polish (`feature/p1-latency-polish`): image URL reachability cache; trusted Supabase Storage host skip; parallel stats insert + image validation on open; shorter probe timeout (~1.5–2s); short-TTL `listAll` / eligible car pool cache
 - Phase 2: `car-repository.findEligible`, themed pack admin + user pack picker (15–20 pack UX)
 - Phase 3: Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
-### Deferred (cleanup audit follow-ups)
-- Metrics start/complete for modals/autocomplete when those interaction types are added (CLN-011)
-- Car delete API / `clear-stubs` maintainer script (CLN-016)
-- Imperial/metric display toggle (CLN-018)
-- Optional automated tests for formatters and import normalization (CLN-019)
+### Deferred
+- Metrics start/complete for modals/autocomplete when those interaction types are added
+- Car delete API / `clear-stubs` maintainer script
+- Imperial/metric display toggle
+- Optional automated tests for formatters and import normalization
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
 
@@ -54,7 +55,6 @@ Phase 1 pack simulator (M1): weighted pack generation, interim reveal UX, pagina
 ### Documentation
 - README: pack-simulator complete, checklists, Supabase Storage workflow, latency notes, project structure
 - Catalog drops README: `image_url`, full-row upsert warning, Supabase public URLs
-- Cleanup audit trimmed to open/deferred findings only
 
 ---
 
@@ -67,8 +67,8 @@ Phase 1 data layer: domain model, repositories, Supabase boot wiring, and catalo
 - `src/renderers/card-display.js` — `buildCardDisplay`, `buildCardEmbedFields`, `formatRarityStars`
 - `src/shared/generate-serial-id.js` — random 6-digit IDs with collision retry (reserves pack `100000`)
 - `src/repositories/` — car, pack, and stats repositories; `createRepositories(supabase)`
-- Bot boot wires `createSupabaseClient` and `repositories` on runtime config (CLN-002, CLN-003)
-- `scripts/import-cars.js`, `scripts/seed-stubs.js`, `scripts/lib/catalog.js` (CLN-005)
+- Bot boot wires `createSupabaseClient` and `repositories` on runtime config
+- `scripts/import-cars.js`, `scripts/seed-stubs.js`, `scripts/lib/catalog.js`
 - `npm run import-cars`, `npm run seed-stubs`
 
 ### Changed

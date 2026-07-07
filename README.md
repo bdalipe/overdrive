@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **Complete** (admin UX: `feature/p1-admin-default-pack`) |
+| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **Complete** — admin + latency polish branches remain |
 | **2** — Pack definitions | M2: themed packs (admin create/configure), user pack picker (15–20 packs) | Not started |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -59,6 +59,18 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `pack-stats-events` (`pack_open` + per-card `pull`) | Done |
 | Image URL fetch validation (omit dead links) | Done |
 | Default-pack admin commands | Pending (`feature/p1-admin-default-pack`) |
+
+### Phase 1 latency polish checklist
+
+Planned on **`feature/p1-latency-polish`** (may ship in parallel with admin).
+
+| Item | Status |
+|------|--------|
+| Image URL reachability cache (in-memory, ~5–15 min TTL) | Pending |
+| Trusted-host skip for Supabase Storage public URLs | Pending |
+| Parallel `stats.insertEvents` + `applyReachableImageUrls` on open | Pending |
+| Shorter image probe timeout (~1.5–2s) | Pending |
+| Short-TTL cache for `cars.listAll()` / eligible pool in `generatePack` | Pending |
 
 **Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 5** (after M5). Phases 0–4 use the **dev bot on your PC**.
 
@@ -326,6 +338,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Image URL reachability check (`shared/image-url.js`; omit dead links on reveal)
 - [x] Interim pack reveal: title + image + rarity accent (`pack-reveal.js`, `theme.js`); card count excludes summary page
 - [ ] Admin pack edit / mutations list & remove (`feature/p1-admin-default-pack`)
+- [ ] Open-path latency polish (`feature/p1-latency-polish`) — URL reachability cache, trusted Supabase hosts, parallel stats + image probe, shorter timeout, `listAll` pool cache
 
 ### Phase 2 — Pack definitions
 - [ ] Admin themed-pack create/configure/disable
@@ -348,18 +361,18 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [ ] `/view-card` using card composer
 - [ ] **Wispbyte prod deployment**
 
-Phases 6+ (economy, upgrades, live races, campaign) — see parent implementation plan.
+Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
 ---
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens:** pack definition + rates + eligibility + mutations cached in memory (**60s TTL** via `pack-config-cache.js`); repeat opens within TTL skip those DB reads. **Paging:** reveal embeds + button rows are **prebuilt at open** and reused on Prev/Next/Skip. **Images:** unreachable `image_url` values are probed at open (`image-url.js`) and omitted from embeds. Remaining latency is mostly Discord API + image fetch — prefer Supabase Storage URLs and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens (today):** pack definition + rates + eligibility + mutations cached in memory (**60s TTL** via `pack-config-cache.js`); repeat opens within TTL skip those DB reads. **Paging:** reveal embeds + button rows are **prebuilt at open** and reused on Prev/Next/Skip. **Images:** unreachable `image_url` values are probed at open (`image-url.js`) and omitted from embeds; Discord still fetches valid URLs on render. **Planned (`feature/p1-latency-polish`):** URL probe cache, trusted Supabase Storage skip, parallel stats + image validation, shorter probe timeout, short-TTL `listAll` pool cache. Prefer Supabase Storage URLs and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phases 1–2):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 3 compose and future commands.
-- **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice (see cleanup audit CLN-018); until then, formatters in `models/car.js` use imperial suffixes.
+- **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — admin guarantee/bonus rules persist until changed or removed; `100%` = guarantee; bonus % applies after `rarity_gate` slot (e.g. true P = P(6★)×P(bonus|6★))
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Admin create:** omitted rarity tiers default to weight **0**. **Admin edit:** tiers not in the update payload **retain** their existing DB weight. **Guardrail:** tier weights for a pack must sum to **100** before save (user-facing error otherwise). Phase 1 **runtime read** may fall back to the seeded baseline when rows are missing (transitional). Phase 2 adds `car-repository.findEligible` so filtered packs do not load the full catalog via `listAll`.
 - **Catalog import** — versioned JSON drops in `data/catalog/drops/`; `manifest.json` tracks applied vs pending per import run
@@ -380,7 +393,7 @@ Layout and drop format are documented in `data/catalog/drops/README.md`.
 3. Run `npm run import-cars` — upserts cars, updates manifest `applied` / `pending` / `lastUpdated`.
 4. Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
-**Removing cars:** There is no `delete` API on `car-repository` yet. To clear stubs or bad rows today, use the Supabase Table Editor or SQL (e.g. `DELETE FROM cars WHERE …`). A maintainer script (`clear-stubs` / repository `deleteById`) is a **planned** follow-up (cleanup audit CLN-016).
+**Removing cars:** There is no `delete` API on `car-repository` yet. To clear stubs or bad rows today, use the Supabase Table Editor or SQL (e.g. `DELETE FROM cars WHERE …`). A maintainer `clear-stubs` script or repository `deleteById` is planned for a future tooling slice.
 
 ---
 
