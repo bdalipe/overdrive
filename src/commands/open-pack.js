@@ -10,6 +10,7 @@ const {
 } = require('../renderers/pack-reveal');
 const logger = require('../shared/logger');
 const { applyReachableImageUrls } = require('../shared/image-url');
+const { buildPackOpenStatsEvents } = require('../services/pack-stats-events');
 
 // Button custom IDs omit hyphens; slash command name is `open-pack`.
 const PAGINATION_PREFIX = 'openpack';
@@ -78,6 +79,25 @@ async function execute(interaction, config) {
     const result = await config.services.packs.generatePack({
         userId: interaction.user.id,
     });
+
+    try {
+        await config.repositories.stats.insertEvents(
+            buildPackOpenStatsEvents({
+                userId: interaction.user.id,
+                packId: result.packId,
+                packSlug: result.packSlug,
+                packSize: result.packSize,
+                cards: result.cards,
+            }),
+        );
+    } catch (error) {
+        logger.error('pack_stats_insert_failed', {
+            userId: interaction.user.id,
+            packId: result.packId,
+            packSlug: result.packSlug,
+            error: error.message,
+        });
+    }
 
     const cards = await applyReachableImageUrls(result.cards);
     const droppedImages = result.cards.filter(
