@@ -10,7 +10,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Planned
 - Phase 1 admin: pack mutations UX with drop-rate validation (`feature/p1-admin-default-pack`); call `invalidatePackConfig` after edits
-- Phase 1 latency polish (`feature/p1-latency-polish`): image URL reachability cache; trusted Supabase Storage host skip; parallel stats insert + image validation on open; shorter probe timeout (~1.5–2s); short-TTL `listAll` / eligible car pool cache
 - Phase 2: `car-repository.findEligible`, themed pack admin + user pack picker (15–20 pack UX)
 - Phase 3: Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
@@ -20,9 +19,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Metrics start/complete for modals/autocomplete when those interaction types are added
 - Car delete API / `clear-stubs` maintainer script
 - Imperial/metric display toggle
-- Optional automated tests for formatters and import normalization
+- Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.1.6] - 2026-07-07
+
+Phase 1 open-path latency polish. `package.json` is set to `0.1.5` on this branch so the automated patch bump on merge to `develop` lands at `0.1.6`.
+
+### Added
+- `image-url.js` — reachability cache (10 min default TTL); trusted skip for Supabase Storage public object URLs; `clearImageUrlCache()`, `isTrustedSupabaseStorageUrl()`
+- `pack-service.js` — `loadAllCars()` / `invalidateCarPool()` for 60s `listAll` pool cache (shared with pack-config cache)
+- `open-pack.js` — `insertPackOpenStats`; parallel `stats.insertEvents` + `applyReachableImageUrls` after `generatePack`
+
+### Changed
+- Image probe default timeout **5000 → 2000** ms (`IMAGE_PROBE_TIMEOUT_MS`, `IMAGE_PROBE_CACHE_TTL_MS`, `IMAGE_PROBE_FORCE` in `.env.example`)
+
+### Documentation
+- README: latency checklist merged into Phase 1; optional image-probe env vars; design principles updated
 
 ---
 
@@ -124,9 +140,9 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 
 ### Documentation
 - README development status, setup, versioning, and phased roadmap
-- Implementation plans: stat display semantics, multi-pack model, phased card composition and performance engine
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.5...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.6...develop
+[0.1.6]: https://github.com/bdalipe/overdrive/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bdalipe/overdrive/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/bdalipe/overdrive/compare/v0.1.0...v0.1.3

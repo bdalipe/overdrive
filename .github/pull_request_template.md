@@ -12,7 +12,7 @@ Apply **one** label to this PR before merging:
 
 If no label is set, the version bump workflow defaults to **patch**.
 
-CI only updates `package.json` and creates a tag. Set `package.json` on this branch to the **pre-bump** base so the labeled bump lands on the intended target (e.g. `0.1.4` + `version:patch` → `0.1.5`).
+CI only updates `package.json` and creates a tag. Set `package.json` on this branch to the **pre-bump** base so the labeled bump lands on the intended target (e.g. `0.1.5` + `version:patch` → `0.1.6`).
 
 ## README & CHANGELOG (required before merge)
 

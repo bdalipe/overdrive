@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.1.4` (pack simulator complete; target `0.1.5` on merge to `develop` with `version:patch`)
+**Version:** `0.1.5` (latency polish complete; target `0.1.6` on merge to `develop` with `version:patch`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **Complete** — admin + latency polish branches remain |
+| **1** — Pack simulator | M1: default-pack simulator, Unavailable/N/A display, multi-pack **schema** | **Complete** — admin branch (`feature/p1-admin-default-pack`) remains |
 | **2** — Pack definitions | M2: themed packs (admin create/configure), user pack picker (15–20 packs) | Not started |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -57,20 +57,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Prebuilt pagination payloads (faster Prev/Next/Skip) | Done |
 | In-memory pack config cache (60s TTL: pack row, rates, eligibility, mutations) | Done |
 | `pack-stats-events` (`pack_open` + per-card `pull`) | Done |
-| Image URL fetch validation (omit dead links) | Done |
+| Image URL fetch validation (omit dead links; probe cache + trusted Supabase hosts) | Done |
+| Open-path latency polish (`feature/p1-latency-polish`) | Done |
 | Default-pack admin commands | Pending (`feature/p1-admin-default-pack`) |
-
-### Phase 1 latency polish checklist
-
-Planned on **`feature/p1-latency-polish`** (may ship in parallel with admin).
-
-| Item | Status |
-|------|--------|
-| Image URL reachability cache (in-memory, ~5–15 min TTL) | Pending |
-| Trusted-host skip for Supabase Storage public URLs | Pending |
-| Parallel `stats.insertEvents` + `applyReachableImageUrls` on open | Pending |
-| Shorter image probe timeout (~1.5–2s) | Pending |
-| Short-TTL cache for `cars.listAll()` / eligible pool in `generatePack` | Pending |
 
 **Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 5** (after M5). Phases 0–4 use the **dev bot on your PC**.
 
@@ -115,6 +104,9 @@ cp .env.example .env
 | `DISCORD_GUILD_ID` | Recommended in dev | Test server ID — guild commands update instantly |
 | `SUPABASE_URL` | Yes (bot boot) | Project URL from Supabase → Project Settings → API (`https://<ref>.supabase.co`) |
 | `SUPABASE_SECRET_KEY` | Yes (bot boot) | Secret / service-role key (server-side only; never commit). Legacy alias: `SUPABASE_SERVICE_ROLE_KEY` |
+| `IMAGE_PROBE_FORCE` | No | Set `true` to probe Supabase Storage URLs instead of trusting public object paths |
+| `IMAGE_PROBE_TIMEOUT_MS` | No | Image reachability probe timeout (default `2000`) |
+| `IMAGE_PROBE_CACHE_TTL_MS` | No | Probe result cache TTL (default `600000` / 10 min) |
 
 Optional: use `.env.dev` / `.env.prod` for separate files per environment. `loadEnv()` reads `.env.{BOT_ENV}` first, then `.env`. See [`.env.example`](.env.example) for the full template.
 
@@ -293,13 +285,13 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 
 **Before every `feature/*` → `develop` PR:**
 
-1. Choose the **target version** CI will produce (e.g. patch from `0.1.4` → `0.1.5`).
+1. Choose the **target version** CI will produce (e.g. patch from `0.1.5` → `0.1.6`).
 2. Set `package.json` to the **pre-bump** base so the labeled bump lands on the target.
 3. Add a dated `## [X.Y.Z]` section in [CHANGELOG.md](CHANGELOG.md) for that **target** version (move items out of `[Unreleased]`). Document skipped versions if CI previously failed.
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (pack-simulator branch): `package.json` = `0.1.4`, CHANGELOG `## [0.1.5]`, label `version:patch`.
+Example (latency-polish branch): `package.json` = `0.1.5`, CHANGELOG `## [0.1.6]`, label `version:patch`.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -335,10 +327,10 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `drop-rate-service` + `pack-service` + `pack-config-cache` + `pack-stats-events` (`src/services/`)
 - [x] `/open-pack` wired: weighted opens, interim reveal, Skip + summary, preloaded pages, pack config cache
 - [x] Stats events on pack open (`pack_open` + per-card `pull` → `stats_events`)
-- [x] Image URL reachability check (`shared/image-url.js`; omit dead links on reveal)
+- [x] Image URL reachability (`shared/image-url.js`): probe cache, trusted Supabase Storage skip, 2s timeout; omit dead links on reveal
+- [x] Open-path latency: parallel stats + image validation; `loadAllCars()` pool cache (60s TTL, `invalidateCarPool`)
 - [x] Interim pack reveal: title + image + rarity accent (`pack-reveal.js`, `theme.js`); card count excludes summary page
 - [ ] Admin pack edit / mutations list & remove (`feature/p1-admin-default-pack`)
-- [ ] Open-path latency polish (`feature/p1-latency-polish`) — URL reachability cache, trusted Supabase hosts, parallel stats + image probe, shorter timeout, `listAll` pool cache
 
 ### Phase 2 — Pack definitions
 - [ ] Admin themed-pack create/configure/disable
@@ -367,7 +359,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens (today):** pack definition + rates + eligibility + mutations cached in memory (**60s TTL** via `pack-config-cache.js`); repeat opens within TTL skip those DB reads. **Paging:** reveal embeds + button rows are **prebuilt at open** and reused on Prev/Next/Skip. **Images:** unreachable `image_url` values are probed at open (`image-url.js`) and omitted from embeds; Discord still fetches valid URLs on render. **Planned (`feature/p1-latency-polish`):** URL probe cache, trusted Supabase Storage skip, parallel stats + image validation, shorter probe timeout, short-TTL `listAll` pool cache. Prefer Supabase Storage URLs and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`); eligible car pool cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); repeat opens within TTL skip those DB reads. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
