@@ -48,6 +48,7 @@ function logResponseSent(interaction, startedAt) {
 }
 
 module.exports = {
+    LATENCY_WARN_MS,
     startTimer,
     logInteractionStart,
     logResponseSent,
