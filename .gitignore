@@ -18,5 +18,6 @@ Thumbs.db
 .cleanup-audit/
 .cursor/
 
-# Proprietary catalog drops (commit README + manifest; keep car JSON local)
+# Proprietary catalog drops (commit README + manifest; keep car/pack JSON local)
 data/catalog/drops/*.json
+data/packs/drops/*.json

@@ -192,6 +192,14 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         return cache.getOrLoad(CAR_POOL_CACHE_KEY, () => cars.listAll());
     }
 
+    async function loadEligibleCars(eligibility) {
+        if (!eligibility || eligibility.rule_type === 'all_cars') {
+            return loadAllCars();
+        }
+
+        return cars.findEligible(eligibility);
+    }
+
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
         const pack = await resolvePack(packId);
         const size = packSizeOverride ?? pack.pack_size;
@@ -200,12 +208,8 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             throw new Error(`Invalid pack size for pack ${pack.id}: ${size}`);
         }
 
-        const [allCars, { eligibility, mutations, weights }] = await Promise.all([
-            loadAllCars(),
-            loadPackConfig(pack.id),
-        ]);
-
-        const eligibleCars = resolveEligibleCars(allCars, eligibility);
+        const { eligibility, mutations, weights } = await loadPackConfig(pack.id);
+        const eligibleCars = await loadEligibleCars(eligibility);
 
         if (eligibleCars.length === 0) {
             throw new Error(
@@ -272,6 +276,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         resolvePack,
         loadPackConfig,
         loadAllCars,
+        loadEligibleCars,
         invalidatePackConfig: (id) => cache.invalidatePack(id),
         invalidateCarPool: () => cache.invalidate(CAR_POOL_CACHE_KEY),
         clearPackConfigCache: () => cache.clear(),

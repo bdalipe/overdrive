@@ -1,0 +1,8 @@
+{
+  "applied": [
+    "001-test-pack.json"
+  ],
+  "pending": [],
+  "lastUpdated": "2026-07-10T08:02:13.772Z",
+  "notes": "Updated by npm run import-packs on each import. Use manifest.{BOT_ENV}.json locally if dev and prod pack catalogs diverge."
+}

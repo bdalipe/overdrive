@@ -1,3 +1,4 @@
+const { SlashCommandBuilder } = require('discord.js');
 const {
     buildPaginatedPayload,
     handlePaginationInteraction,
@@ -15,6 +16,8 @@ const { buildPackOpenStatsEvents } = require('../services/pack-stats-events');
 // Button custom IDs omit hyphens; slash command name is `open-pack`.
 const PAGINATION_PREFIX = 'openpack';
 const SESSION_TTL_MS = 15 * 60 * 1000;
+/** Discord allows at most 25 choices on a string option. */
+const MAX_PACK_CHOICES = 25;
 
 /** @type {Map<string, { pages: object[], payloads: object[], expiresAt: number }>} */
 const sessions = new Map();
@@ -84,11 +87,87 @@ async function insertPackOpenStats(statsRepository, statsEvents, logContext) {
     }
 }
 
+function sortActivePacks(packs) {
+    return [...packs].sort((a, b) => {
+        if (a.is_default !== b.is_default) {
+            return a.is_default ? -1 : 1;
+        }
+
+        return String(a.name).localeCompare(String(b.name));
+    });
+}
+
+function buildPackChoices(activePacks) {
+    const packs = sortActivePacks(activePacks).slice(0, MAX_PACK_CHOICES);
+
+    if (packs.length === 0) {
+        return [{ name: 'Standard Pack', value: 'default' }];
+    }
+
+    const usedValues = new Set();
+    const choices = [];
+
+    for (const pack of packs) {
+        const value = String(pack.slug).slice(0, 100);
+
+        if (usedValues.has(value)) {
+            continue;
+        }
+
+        usedValues.add(value);
+
+        const name = pack.is_default
+            ? `${pack.name} (default)`
+            : String(pack.name);
+
+        choices.push({
+            name: name.slice(0, 100),
+            value,
+        });
+    }
+
+    return choices;
+}
+
+/**
+ * Builds `/open-pack` with a required `pack` choice list (same picker UX as
+ * picking an `/admin` subcommand — Discord shows a fixed dropdown of options).
+ * Choices are loaded from active packs at `register-commands` time.
+ */
+function buildDefinition({ activePacks = [] } = {}) {
+    const choices = buildPackChoices(activePacks);
+
+    return new SlashCommandBuilder()
+        .setName('open-pack')
+        .setDescription('Open a pack and reveal your cards')
+        .addStringOption((option) =>
+            option
+                .setName('pack')
+                .setDescription('Which pack to open')
+                .setRequired(true)
+                .addChoices(...choices),
+        );
+}
+
 async function execute(interaction, config) {
+    const slug = interaction.options.getString('pack', true);
+
     await interaction.deferReply();
+
+    const pack = await config.repositories.packs.findBySlug(slug);
+
+    if (!pack || !pack.is_active) {
+        await interaction.editReply({
+            content:
+                `Unknown or inactive pack: \`${slug}\`. `
+                + 'If you recently added packs, run `npm run register-commands` again.',
+        });
+        return;
+    }
 
     const result = await config.services.packs.generatePack({
         userId: interaction.user.id,
+        packId: pack.id,
     });
 
     const statsContext = {
@@ -166,6 +245,7 @@ module.exports = {
     name: 'open-pack',
     description: 'Open a pack and reveal your cards',
     paginationPrefix: PAGINATION_PREFIX,
+    buildDefinition,
     execute,
     handleButton,
 };

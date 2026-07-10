@@ -182,11 +182,21 @@ async function applyReachableImageUrls(cars, options) {
     return results;
 }
 
+function getProbeTimeoutMs() {
+    return resolveTimeoutMs();
+}
+
+function getProbeCacheTtlMs() {
+    return resolveCacheTtlMs();
+}
+
 module.exports = {
     DEFAULT_TIMEOUT_MS,
     DEFAULT_CACHE_TTL_MS,
     SUPABASE_PUBLIC_STORAGE_PATH,
     clearImageUrlCache,
+    getProbeCacheTtlMs,
+    getProbeTimeoutMs,
     isImageProbeForced,
     isTrustedSupabaseStorageUrl,
     isImageUrlReachable,
