@@ -2,7 +2,6 @@ const path = require('path');
 const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
-const { createServices } = require('../src/services');
 const {
     buildCarCatalogImportEvent,
     logConfigChange,
