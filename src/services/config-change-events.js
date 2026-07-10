@@ -62,6 +62,39 @@ function buildPackCatalogImportEvent({
     };
 }
 
+function buildCarCatalogDeleteEvent({ actorId, source, carIds, reason }) {
+    return {
+        actorId,
+        source,
+        entityType: 'car',
+        action: 'delete',
+        payload: {
+            carIds,
+            count: carIds.length,
+            reason: reason ?? null,
+        },
+    };
+}
+
+function buildPackCatalogDeleteEvent({ actorId, packId, packSlug, before }) {
+    const payload = {
+        packId,
+        packSlug,
+    };
+
+    if (before != null) {
+        payload.before = before;
+    }
+
+    return {
+        actorId,
+        source: 'delete-packs',
+        entityType: 'pack',
+        action: 'delete',
+        payload,
+    };
+}
+
 async function logConfigChange(configChangeRepository, event) {
     try {
         await configChangeRepository.insert(event);
@@ -80,5 +113,7 @@ module.exports = {
     resolveMaintainerActorId,
     buildCarCatalogImportEvent,
     buildPackCatalogImportEvent,
+    buildCarCatalogDeleteEvent,
+    buildPackCatalogDeleteEvent,
     logConfigChange,
 };
