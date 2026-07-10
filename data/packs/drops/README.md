@@ -149,4 +149,6 @@ Each mutation entry:
 
 Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
+**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Re-run `npm run register-commands` afterward.
+
 Do not commit proprietary pack configs to a public repo unless intended.

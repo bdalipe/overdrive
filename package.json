@@ -9,6 +9,9 @@
     "dev:register": "npm run register-commands && npm run dev",
     "import-cars": "node scripts/import-cars.js",
     "import-packs": "node scripts/import-packs.js",
+    "delete-cars": "node scripts/delete-cars.js",
+    "delete-packs": "node scripts/delete-packs.js",
+    "clear-stubs": "node scripts/clear-stubs.js",
     "seed-stubs": "node scripts/seed-stubs.js"
   },
   "keywords": [],

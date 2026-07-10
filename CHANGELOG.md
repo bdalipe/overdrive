@@ -8,20 +8,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Planned
-- Phase 1 admin: pack mutations UX with drop-rate validation (`feature/p1-admin-default-pack`); call `invalidatePackConfig` after edits
-- Phase 2: `car-repository.findEligible`, themed pack admin + user pack picker (15–20 pack UX)
-- Phase 3: Modular card image composer (per-component toggles; performance block off by default)
+### Planned (Phase 3+)
+- Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
 ### Deferred
 - Metrics start/complete for modals/autocomplete when those interaction types are added
-- Car delete API / `clear-stubs` maintainer script
 - Imperial/metric display toggle
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.2.0] - 2026-07-10
+
+Phase 1 M1 complete: pack catalog drops, multi-pack opens, eligibility query, delete APIs, audit log. `package.json` is set to `0.1.6` on this branch so the automated minor bump on merge to `develop` lands at `0.2.0`.
+
+### Added
+- `data/packs/` — manifest + drops README; `npm run import-packs` for create/patch pack definitions, rates, eligibility, mutations
+- `scripts/lib/drop-manifest.js` — shared manifest helper for car and pack catalogs
+- `src/models/pack.js`, `src/services/pack-import.js` — pack drop normalization and import apply path
+- `config_change_events` migration (`006`) + `config-change-repository` — mandatory audit log for catalog imports and deletes
+- `src/services/config-change-events.js` — car/pack import + delete event builders; `MAINTAINER_DISCORD_USER_ID` attribution
+- `/admin` — `debug-latency` only (pack slash admin removed in favor of drops)
+- `/open-pack` — required `pack` option with a fixed Discord **choice list** of active packs (display name → slug); registered from DB at `register-commands` time
+- `cars.findEligible` — DB-side eligibility for filter / explicit_ids packs; `all_cars` still uses cached `listAll`
+- Car/pack delete APIs: `deleteById` / `deleteByIds` / `deleteStubs` (cars); `deleteById` / `deleteBySlug` (packs, blocks default)
+- Maintainer scripts: `npm run delete-cars`, `delete-packs`, `clear-stubs` (audit to `config_change_events`)
+
+### Changed
+- Pack create/edit/mutations Discord admin commands **removed** — replaced by `import-packs` drops (same pattern as cars)
+- `import-cars` logs each applied drop to `config_change_events`
+- Car and pack drops README templates list **every** DB column with examples
+- `register-commands` loads active packs from Supabase so `/open-pack` pack choices stay in sync (no longer DB-free)
+- `pack-service.generatePack` uses `loadEligibleCars` / `findEligible` for non-`all_cars` packs
+- Phase 2 themed-pack admin UX absorbed into Phase 1 catalog drops
+
+### Documentation
+- README: Phase 1 M1 complete; pack/car import + delete scripts; open-pack choice picker; structure and roadmap synced
 
 ---
 
@@ -141,7 +167,8 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 ### Documentation
 - README development status, setup, versioning, and phased roadmap
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.1.6...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.2.0...develop
+[0.2.0]: https://github.com/bdalipe/overdrive/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/bdalipe/overdrive/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/bdalipe/overdrive/compare/v0.1.3...v0.1.4
