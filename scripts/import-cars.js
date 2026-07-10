@@ -2,6 +2,12 @@ const path = require('path');
 const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
+const { createServices } = require('../src/services');
+const {
+    buildCarCatalogImportEvent,
+    logConfigChange,
+    resolveMaintainerActorId,
+} = require('../src/services/config-change-events');
 const { generateSerialId } = require('../src/shared/generate-serial-id');
 const { normalizeCarForDb } = require('../src/models/car');
 const logger = require('../src/shared/logger');
@@ -22,7 +28,7 @@ async function assignCarId(carRepo, explicitId) {
     });
 }
 
-async function importDrop(carRepo, drop, filename) {
+async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
     const cars = drop.cars ?? [];
 
     if (!Array.isArray(cars) || cars.length === 0) {
@@ -39,17 +45,30 @@ async function importDrop(carRepo, drop, filename) {
 
     await carRepo.upsertMany(rows);
 
+    const carIds = rows.map((row) => row.id);
+
+    await logConfigChange(
+        configChangeRepo,
+        buildCarCatalogImportEvent({
+            actorId,
+            dropId: drop.dropId ?? filename,
+            filename,
+            carIds,
+        }),
+    );
+
     return {
         dropId: drop.dropId ?? filename,
         count: rows.length,
-        ids: rows.map((row) => row.id),
+        ids: carIds,
     };
 }
 
 async function main() {
     const config = loadEnv();
     const supabase = createSupabaseClient(config);
-    const { cars: carRepo } = createRepositories(supabase);
+    const repositories = createRepositories(supabase);
+    const actorId = resolveMaintainerActorId(config);
 
     const { manifest, manifestPath } = readManifest(config.botEnv);
     const pending = resolvePendingDrops(manifest);
@@ -63,7 +82,13 @@ async function main() {
 
     for (const filename of pending) {
         const drop = readDropFile(filename);
-        const result = await importDrop(carRepo, drop, filename);
+        const result = await importDrop(
+            repositories.cars,
+            repositories.configChanges,
+            actorId,
+            drop,
+            filename,
+        );
 
         manifest.applied.push(filename);
         appliedNow.push({ filename, ...result });

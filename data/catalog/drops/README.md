@@ -14,23 +14,61 @@ Each file is a JSON object:
     {
       "id": 482917,
       "rarity": 3,
+      "performance": null,
+      "performance_class": null,
       "make": "Porsche",
       "model": "911",
-      "year": 2024,
-      "image_url": "https://<project-ref>.supabase.co/storage/v1/object/public/car-images/482917.jpg",
+      "zero_to_sixty": 3.2,
+      "zero_to_sixty_status": "available",
+      "top_speed": 191,
+      "top_speed_status": "available",
       "handling": 88,
       "handling_status": "available",
-      "zero_to_sixty_status": "unavailable"
+      "weight": 3350,
+      "weight_status": "available",
+      "drive_type": "AWD",
+      "tyre_type": "Performance",
+      "body_style": "Coupe",
+      "country": "Germany",
+      "model_year": 2024,
+      "tag": "supercar",
+      "description": "Optional flavor text for maintainers",
+      "image_url": "https://<project-ref>.supabase.co/storage/v1/object/public/car-images/482917.jpg"
     }
   ]
 }
 ```
 
-- **`rarity` is required** on every car (1–6).
-- Omit `id` on new cars to let the import script assign a random 6-digit id in `100000`–`999999` (collision retry; excludes reserved default pack id `100000`).
-- Include `id` in patch drops to upsert existing rows.
-- Set value + `*_status` together (`handling` + `handling_status: "available"`).
-- **`image_url`** — optional public HTTPS URL for pack reveal embeds. Prefer Supabase Storage (public bucket); crop to 16:9 and keep under ~800 KB before upload. Unreachable URLs are omitted at open time (see `src/shared/image-url.js`). See README **Car images (Supabase Storage)**.
+### `cars` table — all fields
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `id` | No | 6-digit `100000`–`999999`. Omit on new cars for auto-assign (`100000` reserved for default pack) |
+| `rarity` | **Yes** | `1`–`6` |
+| `performance` | No | Nullable until Phase 4 calculator |
+| `performance_class` | No | Nullable until Phase 4 |
+| `make` | No | |
+| `model` | No | |
+| `zero_to_sixty` | No | Seconds; pair with `zero_to_sixty_status` |
+| `zero_to_sixty_status` | No | `available` \| `unavailable` \| `not_applicable` (default `unavailable`) |
+| `top_speed` | No | mph; pair with `top_speed_status` |
+| `top_speed_status` | No | `available` \| `unavailable` \| `not_applicable` |
+| `handling` | No | Pair with `handling_status` |
+| `handling_status` | No | `available` \| `unavailable` \| `not_applicable` |
+| `weight` | No | lbs (imperial default); pair with `weight_status` |
+| `weight_status` | No | `available` \| `unavailable` \| `not_applicable` |
+| `drive_type` | No | e.g. `AWD`, `RWD` |
+| `tyre_type` | No | |
+| `body_style` | No | e.g. `Coupe`, `SUV` |
+| `country` | No | |
+| `model_year` | No | |
+| `tag` | No | Freeform maintainer tag |
+| `description` | No | |
+| `image_url` | No | Public HTTPS URL; prefer Supabase Storage |
+| `created_at` | — | DB-managed; do not set in drops |
+
+- Set numeric stat + `*_status` together (`handling` + `handling_status: "available"`).
+- Use `normalizeCarForDb` rules: omitted numeric stats default to unavailable.
 
 ### Full-row upsert warning
 
@@ -39,5 +77,9 @@ Each file is a JSON object:
 ## Manifest
 
 `data/catalog/manifest.json` tracks which drops have been applied. `import-cars` moves filenames from `pending` to `applied` and sets `lastUpdated` after a successful run. Use `manifest.{BOT_ENV}.json` when dev and prod catalogs diverge.
+
+## Audit log
+
+Every successful import appends a row to `config_change_events` (`source: import-cars`, `entity_type: car`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
 Do not commit proprietary catalog drops to a public repo unless intended.
