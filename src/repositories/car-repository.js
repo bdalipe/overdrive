@@ -1,6 +1,36 @@
 const { wrapRepositoryError } = require('./errors');
 
 const TABLE = 'cars';
+/** Must be ≤ PostgREST `max_rows` (see supabase/config.toml). */
+const PAGE_SIZE = 1000;
+
+/**
+ * Fetch every matching row by paging with `.range()`.
+ * A single unpaged `.select()` silently truncates at `max_rows`.
+ */
+async function fetchAllRows(buildQuery, operation) {
+    const rows = [];
+    let from = 0;
+
+    for (;;) {
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+            throw wrapRepositoryError(operation, error);
+        }
+
+        const page = data ?? [];
+        rows.push(...page);
+
+        if (page.length < PAGE_SIZE) {
+            break;
+        }
+
+        from += PAGE_SIZE;
+    }
+
+    return rows;
+}
 
 function createCarRepository(supabase) {
     async function findById(id) {
@@ -76,21 +106,16 @@ function createCarRepository(supabase) {
     }
 
     async function listAll() {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*')
-            .order('id', { ascending: true });
-
-        if (error) {
-            throw wrapRepositoryError('cars.listAll', error);
-        }
-
-        return data ?? [];
+        return fetchAllRows(
+            () => supabase.from(TABLE).select('*').order('id', { ascending: true }),
+            'cars.listAll',
+        );
     }
 
     /**
      * Resolve cars for a pack_eligibility row without loading the full catalog when possible.
      * Filter semantics match pack-service `matchesFilter` (null year bypasses year bounds).
+     * Results are paged so pools are not silently truncated at PostgREST `max_rows`.
      */
     async function findEligible(eligibility) {
         if (!eligibility || eligibility.rule_type === 'all_cars') {
@@ -104,17 +129,15 @@ function createCarRepository(supabase) {
                 return [];
             }
 
-            const { data, error } = await supabase
-                .from(TABLE)
-                .select('*')
-                .in('id', ids)
-                .order('id', { ascending: true });
-
-            if (error) {
-                throw wrapRepositoryError('cars.findEligible', error);
-            }
-
-            return data ?? [];
+            return fetchAllRows(
+                () =>
+                    supabase
+                        .from(TABLE)
+                        .select('*')
+                        .in('id', ids)
+                        .order('id', { ascending: true }),
+                'cars.findEligible',
+            );
         }
 
         if (eligibility.rule_type !== 'filter') {
@@ -122,42 +145,39 @@ function createCarRepository(supabase) {
         }
 
         const filter = eligibility.filter_json ?? {};
-        let query = supabase.from(TABLE).select('*');
 
-        if (Array.isArray(filter.rarities) && filter.rarities.length > 0) {
-            query = query.in('rarity', filter.rarities);
-        }
+        return fetchAllRows(() => {
+            let query = supabase.from(TABLE).select('*');
 
-        if (Array.isArray(filter.countries) && filter.countries.length > 0) {
-            query = query.in('country', filter.countries);
-        }
+            if (Array.isArray(filter.rarities) && filter.rarities.length > 0) {
+                query = query.in('rarity', filter.rarities);
+            }
 
-        if (Array.isArray(filter.bodyStyles) && filter.bodyStyles.length > 0) {
-            query = query.in('body_style', filter.bodyStyles);
-        }
+            if (Array.isArray(filter.countries) && filter.countries.length > 0) {
+                query = query.in('country', filter.countries);
+            }
 
-        if (Array.isArray(filter.tags) && filter.tags.length > 0) {
-            query = query.in('tag', filter.tags);
-        }
+            if (Array.isArray(filter.bodyStyles) && filter.bodyStyles.length > 0) {
+                query = query.in('body_style', filter.bodyStyles);
+            }
 
-        // Match in-memory matchesFilter: null model_year is not excluded by year bounds.
-        if (filter.yearMin != null && filter.yearMax != null) {
-            query = query.or(
-                `model_year.is.null,and(model_year.gte.${Number(filter.yearMin)},model_year.lte.${Number(filter.yearMax)})`,
-            );
-        } else if (filter.yearMin != null) {
-            query = query.or(`model_year.is.null,model_year.gte.${Number(filter.yearMin)}`);
-        } else if (filter.yearMax != null) {
-            query = query.or(`model_year.is.null,model_year.lte.${Number(filter.yearMax)}`);
-        }
+            if (Array.isArray(filter.tags) && filter.tags.length > 0) {
+                query = query.in('tag', filter.tags);
+            }
 
-        const { data, error } = await query.order('id', { ascending: true });
+            // Match in-memory matchesFilter: null model_year is not excluded by year bounds.
+            if (filter.yearMin != null && filter.yearMax != null) {
+                query = query.or(
+                    `model_year.is.null,and(model_year.gte.${Number(filter.yearMin)},model_year.lte.${Number(filter.yearMax)})`,
+                );
+            } else if (filter.yearMin != null) {
+                query = query.or(`model_year.is.null,model_year.gte.${Number(filter.yearMin)}`);
+            } else if (filter.yearMax != null) {
+                query = query.or(`model_year.is.null,model_year.lte.${Number(filter.yearMax)}`);
+            }
 
-        if (error) {
-            throw wrapRepositoryError('cars.findEligible', error);
-        }
-
-        return data ?? [];
+            return query.order('id', { ascending: true });
+        }, 'cars.findEligible');
     }
 
     async function deleteById(id) {
