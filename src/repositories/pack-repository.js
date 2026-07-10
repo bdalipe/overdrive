@@ -209,6 +209,108 @@ function createPackRepository(supabase) {
         return data ?? [];
     }
 
+    async function deleteAllMutations(packId) {
+        const { data, error } = await supabase
+            .from('pack_mutations')
+            .delete()
+            .eq('pack_id', packId)
+            .select('id');
+
+        if (error) {
+            throw wrapRepositoryError('packs.deleteAllMutations', error);
+        }
+
+        return data ?? [];
+    }
+
+    async function createDefinition({
+        id,
+        slug,
+        name,
+        is_default = false,
+        pack_size = 5,
+        is_active = true,
+        description = null,
+    }) {
+        if (is_default) {
+            const currentDefault = await findDefault();
+            if (currentDefault) {
+                throw new Error('A default pack already exists; patch the existing default instead of creating another.');
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('pack_definitions')
+            .insert({
+                id,
+                slug,
+                name,
+                is_default,
+                pack_size,
+                is_active,
+                description,
+            })
+            .select()
+            .single();
+
+        if (error) {
+            throw wrapRepositoryError('packs.createDefinition', error);
+        }
+
+        return data;
+    }
+
+    async function updateDefinition(packId, fields) {
+        const allowed = {};
+
+        if (fields.name != null) {
+            allowed.name = fields.name;
+        }
+
+        if (fields.pack_size != null) {
+            allowed.pack_size = fields.pack_size;
+        }
+
+        if (fields.is_active != null) {
+            allowed.is_active = fields.is_active;
+        }
+
+        if (fields.description != null) {
+            allowed.description = fields.description;
+        }
+
+        if (Object.keys(allowed).length === 0) {
+            return findById(packId);
+        }
+
+        const { data, error } = await supabase
+            .from('pack_definitions')
+            .update(allowed)
+            .eq('id', packId)
+            .select()
+            .single();
+
+        if (error) {
+            throw wrapRepositoryError('packs.updateDefinition', error);
+        }
+
+        return data;
+    }
+
+    async function listActive() {
+        const { data, error } = await supabase
+            .from('pack_definitions')
+            .select('*')
+            .eq('is_active', true)
+            .order('slug', { ascending: true });
+
+        if (error) {
+            throw wrapRepositoryError('packs.listActive', error);
+        }
+
+        return data ?? [];
+    }
+
     return {
         findById,
         findBySlug,
@@ -221,6 +323,10 @@ function createPackRepository(supabase) {
         setEligibility,
         addMutation,
         deleteMutations,
+        deleteAllMutations,
+        createDefinition,
+        updateDefinition,
+        listActive,
     };
 }
 
