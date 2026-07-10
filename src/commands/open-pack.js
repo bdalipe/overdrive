@@ -97,6 +97,30 @@ function sortActivePacks(packs) {
     });
 }
 
+/**
+ * Warn when active packs exceed Discord's 25 string-option choice limit.
+ * @param {object[]} activePacks
+ * @param {string} source e.g. `register-commands` | `import-packs` | `buildPackChoices`
+ */
+function warnIfActivePacksExceedChoiceLimit(activePacks, source) {
+    const activeCount = Array.isArray(activePacks) ? activePacks.length : 0;
+    if (activeCount <= MAX_PACK_CHOICES) {
+        return;
+    }
+
+    const sorted = sortActivePacks(activePacks);
+    const omitted = sorted.slice(MAX_PACK_CHOICES).map((pack) => pack.slug);
+
+    logger.warn('open_pack_choices_truncated', {
+        source,
+        activeCount,
+        maxChoices: MAX_PACK_CHOICES,
+        registeredChoices: MAX_PACK_CHOICES,
+        omittedCount: omitted.length,
+        omittedSlugs: omitted,
+    });
+}
+
 function buildPackChoices(activePacks) {
     const packs = sortActivePacks(activePacks).slice(0, MAX_PACK_CHOICES);
 
@@ -245,6 +269,9 @@ module.exports = {
     name: 'open-pack',
     description: 'Open a pack and reveal your cards',
     paginationPrefix: PAGINATION_PREFIX,
+    MAX_PACK_CHOICES,
+    buildPackChoices,
+    warnIfActivePacksExceedChoiceLimit,
     buildDefinition,
     execute,
     handleButton,

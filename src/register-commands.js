@@ -1,5 +1,6 @@
 const { REST, Routes } = require('discord.js');
 const { getCommandDefinitions } = require('./commands');
+const openPack = require('./commands/open-pack');
 const { loadEnv } = require('./shared/config');
 const { createSupabaseClient } = require('./shared/supabase');
 const { createRepositories } = require('./repositories');
@@ -21,8 +22,19 @@ async function registerCommands() {
     const repositories = createRepositories(supabase);
     const activePacks = await repositories.packs.listActive();
 
+    openPack.warnIfActivePacksExceedChoiceLimit(activePacks, 'register-commands');
+    const openPackChoices = openPack.buildPackChoices(activePacks);
+
     const rest = new REST({ version: '10' }).setToken(config.token);
     const body = getCommandDefinitions({ activePacks });
+
+    const logMeta = {
+        botEnv: config.botEnv,
+        count: body.length,
+        activePacks: activePacks.length,
+        openPackChoices: openPackChoices.length,
+        maxPackChoices: openPack.MAX_PACK_CHOICES,
+    };
 
     if (config.guildId) {
         await rest.put(
@@ -30,21 +42,17 @@ async function registerCommands() {
             { body },
         );
         logger.info('commands_registered', {
+            ...logMeta,
             scope: 'guild',
             guildId: config.guildId,
-            botEnv: config.botEnv,
-            count: body.length,
-            openPackChoices: activePacks.length,
         });
         return;
     }
 
     await rest.put(Routes.applicationCommands(config.clientId), { body });
     logger.info('commands_registered', {
+        ...logMeta,
         scope: 'global',
-        botEnv: config.botEnv,
-        count: body.length,
-        openPackChoices: activePacks.length,
     });
 }
 

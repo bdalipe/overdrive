@@ -76,8 +76,8 @@ Each file is a JSON object:
 | `slug` | **Yes** | Unique key (e.g. `default`, `classic-jdm`) |
 | `name` | **Yes** | Display name |
 | `is_default` | No | Default `false`. Only one default pack allowed |
-| `pack_size` | No | Cards per open; default `5` |
-| `is_active` | No | Default `true` |
+| `pack_size` | No | Cards per open; default `5`. Must be ≥ number of `chance_percent: 100` mutations after the drop |
+| `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
 | `description` | No | Optional text |
 | `created_at` | — | DB-managed; do not set in drops |
 
@@ -112,7 +112,7 @@ Each mutation entry:
 | `mutation_type` | `car` \| `filter` |
 | `target_car_id` | Required for `car` |
 | `filter_json` | Required for `filter` |
-| `chance_percent` | `1`–`100`; `100` = guarantee slot |
+| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses) |
 | `rarity_gate` | Optional `1`–`6`; bonus only when that rarity is drawn |
 | `id` | DB serial; omit on add (use `remove_ids` to delete) |
 | `created_at` | DB-managed; do not set |
