@@ -90,6 +90,25 @@ function pickCarAtRarity(byRarity, rarity) {
     return randomPick(pool);
 }
 
+/** Weighted roll; if rates miss the pool, pick uniformly among rarities that have cars. */
+function rollRarityWithUniformFallback(weights, availableRarities, logContext) {
+    const rarity = rollRarity(weights, availableRarities);
+    if (rarity != null) {
+        return rarity;
+    }
+
+    if (availableRarities.length === 0) {
+        return null;
+    }
+
+    logger.warn('pack_draw_rarity_uniform_fallback', {
+        ...logContext,
+        availableRarities,
+    });
+
+    return availableRarities[randomInt(0, availableRarities.length)];
+}
+
 function mutationResolvableInPool(mutation, pool) {
     if (mutation.mutation_type === 'car') {
         return pool.some((car) => car.id === mutation.target_car_id);
@@ -271,7 +290,10 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         const slotsToFill = Math.max(0, size - cards.length);
 
         for (let slot = 0; slot < slotsToFill; slot += 1) {
-            const rarity = rollRarity(weights, availableRarities);
+            const rarity = rollRarityWithUniformFallback(weights, availableRarities, {
+                ...logContext,
+                slot,
+            });
 
             if (rarity == null) {
                 logger.warn('pack_draw_no_rarity', {
@@ -300,8 +322,10 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             cards.push(car);
         }
 
-        if (cards.length === 0) {
-            throw new Error(`Failed to generate any cards for pack "${pack.slug}"`);
+        if (cards.length !== size) {
+            throw new Error(
+                `Pack "${pack.slug}" generated ${cards.length} cards but pack_size is ${size}`,
+            );
         }
 
         const sortedCards = sortCardsByRarity(cards);
@@ -310,7 +334,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             userId,
             packId: pack.id,
             packSlug: pack.slug,
-            packSize: sortedCards.length,
+            packSize: size,
             cards: sortedCards,
         };
     }
