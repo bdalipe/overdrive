@@ -396,7 +396,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 - **Pack reveal UX (Phases 1–2)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`)
 - **Stats events** — each `/open-pack` appends `pack_open` plus one `pull` per card to `stats_events` (`pack-stats-events.js`); insert failures are logged and do not block the reveal
 - **Performance in schema** nullable until Phase 4 calculator fills ratings
-- **Multi-pack** — default + themed packs via `import-packs`; `/open-pack` required `pack` choice list from active packs (max 25; re-run `register-commands` after pack imports)
+- **Multi-pack** — default + themed packs via `import-packs`; `/open-pack` required `pack` choice list from active packs (**Discord max 25**; extras are omitted — `import-packs` / `register-commands` log `open_pack_choices_truncated`; re-run `register-commands` after pack imports)
 - **Future web portability** — domain logic isolated from Discord wiring
 
 ### Catalog import (maintainers)

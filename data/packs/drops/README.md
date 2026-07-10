@@ -77,7 +77,7 @@ Each file is a JSON object:
 | `name` | **Yes** | Display name |
 | `is_default` | No | Default `false`. Only one default pack allowed |
 | `pack_size` | No | Cards per open; default `5`. Must be ≥ number of `chance_percent: 100` mutations after the drop |
-| `is_active` | No | Default `true` |
+| `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
 | `description` | No | Optional text |
 | `created_at` | — | DB-managed; do not set in drops |
 
