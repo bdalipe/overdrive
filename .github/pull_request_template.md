@@ -12,13 +12,16 @@ Apply **one** label to this PR before merging:
 
 If no label is set, the version bump workflow defaults to **patch**.
 
-## Changelog
+CI only updates `package.json` and creates a tag. Set `package.json` on this branch to the **pre-bump** base so the labeled bump lands on the intended target (e.g. `0.1.5` + `version:patch` → `0.1.6`).
 
-- [ ] Added entries under `## [Unreleased]` in [CHANGELOG.md](../CHANGELOG.md) for user-visible changes
-- [ ] README updated if commands, setup, or roadmap changed (version line is updated by CI or follow-up commit)
+## README & CHANGELOG (required before merge)
+
+- [ ] [CHANGELOG.md](../CHANGELOG.md) has a dated `## [X.Y.Z]` section for the **target** version (not only `[Unreleased]`)
+- [ ] README **Version** line, development status, and roadmap checkboxes match this PR
+- [ ] README setup / env / commands / structure updated if those areas changed
 
 ## Checklist
 
 - [ ] Tested locally (`npm run dev` or `npm run dev:register`)
 - [ ] Re-ran `register-commands` if slash command definitions changed
-- [ ] No secrets committed (`.env`, tokens)
+- [ ] No secrets committed (`.env`, tokens, Supabase secret keys)

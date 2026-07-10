@@ -5,10 +5,10 @@ const {
 } = require('../shared/errors');
 const logger = require('../shared/logger');
 
-const CUSTOM_ID_PATTERN = /^(?<prefix>[^:]+):(?<action>prev|next):(?<page>\d+)$/;
+const CUSTOM_ID_PATTERN = /^(?<prefix>[^:]+):(?<action>prev|next|skip):(?<page>\d+)$/;
 
-function buildPaginationButtons(customIdPrefix, currentPage, totalPages) {
-    return new ActionRowBuilder().addComponents(
+function buildPaginationButtons(customIdPrefix, currentPage, totalPages, { enableSkip = false } = {}) {
+    const components = [
         new ButtonBuilder()
             .setCustomId(`${customIdPrefix}:prev:${currentPage}`)
             .setLabel('Previous')
@@ -19,17 +19,36 @@ function buildPaginationButtons(customIdPrefix, currentPage, totalPages) {
             .setLabel('Next')
             .setStyle(ButtonStyle.Primary)
             .setDisabled(currentPage >= totalPages),
-    );
+    ];
+
+    if (enableSkip) {
+        const onSummaryPage = currentPage >= totalPages;
+        components.push(
+            new ButtonBuilder()
+                .setCustomId(`${customIdPrefix}:skip:${currentPage}`)
+                .setLabel('Skip')
+                .setStyle(ButtonStyle.Success)
+                .setDisabled(onSummaryPage),
+        );
+    }
+
+    return new ActionRowBuilder().addComponents(components);
 }
 
-function buildPaginatedPayload({ pages, currentPage, customIdPrefix, buildPageEmbed }) {
+function buildPaginatedPayload({
+    pages,
+    currentPage,
+    customIdPrefix,
+    buildPageEmbed,
+    enableSkip = false,
+}) {
     const totalPages = pages.length;
     const safePage = Math.max(1, Math.min(currentPage, totalPages));
     const embed = buildPageEmbed(pages[safePage - 1], safePage, totalPages);
 
     return {
         embeds: [embed],
-        components: [buildPaginationButtons(customIdPrefix, safePage, totalPages)],
+        components: [buildPaginationButtons(customIdPrefix, safePage, totalPages, { enableSkip })],
     };
 }
 
@@ -59,10 +78,20 @@ function resolvePageFromButton(action, currentPage, totalPages) {
         return Math.min(totalPages, currentPage + 1);
     }
 
+    if (action === 'skip') {
+        return totalPages;
+    }
+
     return currentPage;
 }
 
-async function handlePaginationInteraction(interaction, { pages, customIdPrefix, buildPageEmbed }) {
+async function handlePaginationInteraction(interaction, {
+    pages,
+    customIdPrefix,
+    buildPageEmbed,
+    enableSkip = false,
+    getPayload,
+}) {
     const parsed = parsePaginationCustomId(interaction.customId);
     if (!parsed || parsed.prefix !== customIdPrefix) {
         logger.warn('pagination_parse_failed', {
@@ -87,18 +116,23 @@ async function handlePaginationInteraction(interaction, { pages, customIdPrefix,
 
     const totalPages = pages.length;
     const newPage = resolvePageFromButton(parsed.action, parsed.page, totalPages);
-    const payload = buildPaginatedPayload({
-        pages,
-        currentPage: newPage,
-        customIdPrefix,
-        buildPageEmbed,
-    });
+    const payload = getPayload
+        ? getPayload(newPage)
+        : buildPaginatedPayload({
+            pages,
+            currentPage: newPage,
+            customIdPrefix,
+            buildPageEmbed,
+            enableSkip,
+        });
 
     await interaction.update(payload);
 }
 
 module.exports = {
     buildPaginatedPayload,
+    buildPaginationButtons,
     handlePaginationInteraction,
     matchesPaginationPrefix,
+    resolvePageFromButton,
 };
