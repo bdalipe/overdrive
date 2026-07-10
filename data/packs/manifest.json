@@ -1,0 +1,6 @@
+{
+  "applied": [],
+  "pending": [],
+  "lastUpdated": null,
+  "notes": "Updated by npm run import-packs on each import. Use manifest.{BOT_ENV}.json locally if dev and prod pack catalogs diverge."
+}
