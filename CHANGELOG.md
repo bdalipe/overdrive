@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed (post-M1 harden-correctness → target `0.2.1`)
+- Paginate `cars.listAll` / `findEligible` past PostgREST row caps
+- `100%` pack mutations bypass eligibility; unresolved guarantees log; bonuses outside eligibility rejected at `import-packs`
+- Import rejects when guarantee count exceeds `pack_size`
+- Weighted rarity miss falls back to uniform pick among pool rarities; opens fail if card count ≠ `pack_size` (stats `packSize` matches configured size)
+- Warn when active packs exceed Discord’s 25 `/open-pack` choices (`import-packs` + `register-commands`)
+
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
