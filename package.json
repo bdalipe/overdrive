@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "dev:register": "npm run register-commands && npm run dev",
     "import-cars": "node scripts/import-cars.js",
+    "import-packs": "node scripts/import-packs.js",
     "seed-stubs": "node scripts/seed-stubs.js"
   },
   "keywords": [],
