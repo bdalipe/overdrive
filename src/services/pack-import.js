@@ -89,6 +89,38 @@ async function assertBonusMutationsWithinEligibility(
     }
 }
 
+/** Guarantees (100%) must not exceed configured pack_size. */
+function assertGuaranteeCountWithinPackSize(mutations, packSize, packSlug) {
+    const guaranteeCount = (mutations ?? []).filter(
+        (mutation) => Number(mutation.chance_percent) === 100,
+    ).length;
+
+    if (guaranteeCount > packSize) {
+        throw new Error(
+            `Too many guarantee mutations for "${packSlug}":` +
+                ` ${guaranteeCount} guarantees (chance_percent 100) exceed pack_size ${packSize}.` +
+                ' Reduce guarantees or increase pack_size.',
+        );
+    }
+}
+
+function resolveEffectivePackSize(entry, existing, isCreate) {
+    if (entry.pack_size != null) {
+        const packSize = Number(entry.pack_size);
+        if (!Number.isInteger(packSize) || packSize < 1) {
+            throw new Error(`Invalid pack_size: ${entry.pack_size}`);
+        }
+
+        return packSize;
+    }
+
+    if (isCreate) {
+        return 5;
+    }
+
+    return existing.pack_size;
+}
+
 async function planMutationsAfterDrop(packRepository, packId, mutationsInput, { isCreate }) {
     if (!mutationsInput) {
         if (isCreate) {
@@ -174,10 +206,10 @@ async function applyPackEntry({
           ? defaultEligibility()
           : null;
 
-    if (entry.eligibility || entry.mutations || isCreate) {
-        const eligibilityForCheck =
-            effectiveEligibility ?? (await packRepository.getEligibility(existing.id));
+    const needsMutationPlan =
+        isCreate || entry.eligibility != null || entry.mutations != null || entry.pack_size != null;
 
+    if (needsMutationPlan) {
         const plannedMutations = await planMutationsAfterDrop(
             packRepository,
             existing?.id,
@@ -185,12 +217,20 @@ async function applyPackEntry({
             { isCreate },
         );
 
-        await assertBonusMutationsWithinEligibility(
-            carRepository,
-            eligibilityForCheck,
-            plannedMutations,
-            entry.slug,
-        );
+        const packSize = resolveEffectivePackSize(entry, existing, isCreate);
+        assertGuaranteeCountWithinPackSize(plannedMutations, packSize, entry.slug);
+
+        if (entry.eligibility || entry.mutations || isCreate) {
+            const eligibilityForCheck =
+                effectiveEligibility ?? (await packRepository.getEligibility(existing.id));
+
+            await assertBonusMutationsWithinEligibility(
+                carRepository,
+                eligibilityForCheck,
+                plannedMutations,
+                entry.slug,
+            );
+        }
     }
 
     if (isCreate) {
@@ -326,4 +366,5 @@ module.exports = {
     applyPackEntry,
     snapshotPack,
     assertBonusMutationsWithinEligibility,
+    assertGuaranteeCountWithinPackSize,
 };
