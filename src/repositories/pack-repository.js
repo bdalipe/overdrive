@@ -311,6 +311,41 @@ function createPackRepository(supabase) {
         return data ?? [];
     }
 
+    async function deleteById(packId) {
+        const existing = await findById(packId);
+
+        if (!existing) {
+            return null;
+        }
+
+        if (existing.is_default) {
+            throw new Error('Cannot delete the default pack');
+        }
+
+        const { data, error } = await supabase
+            .from('pack_definitions')
+            .delete()
+            .eq('id', packId)
+            .select()
+            .maybeSingle();
+
+        if (error) {
+            throw wrapRepositoryError('packs.deleteById', error);
+        }
+
+        return data;
+    }
+
+    async function deleteBySlug(slug) {
+        const existing = await findBySlug(slug);
+
+        if (!existing) {
+            return null;
+        }
+
+        return deleteById(existing.id);
+    }
+
     return {
         findById,
         findBySlug,
@@ -327,6 +362,8 @@ function createPackRepository(supabase) {
         createDefinition,
         updateDefinition,
         listActive,
+        deleteById,
+        deleteBySlug,
     };
 }
 
