@@ -90,20 +90,56 @@ function pickCarAtRarity(byRarity, rarity) {
     return randomPick(pool);
 }
 
-function pickFromMutation(mutation, eligibleCars, byRarity) {
+function mutationResolvableInPool(mutation, pool) {
     if (mutation.mutation_type === 'car') {
-        return eligibleCars.find((car) => car.id === mutation.target_car_id) ?? null;
+        return pool.some((car) => car.id === mutation.target_car_id);
     }
 
     if (mutation.mutation_type === 'filter') {
-        const matches = eligibleCars.filter((car) => matchesFilter(car, mutation.filter_json));
+        return pool.some((car) => matchesFilter(car, mutation.filter_json));
+    }
+
+    return false;
+}
+
+function pickFromMutation(mutation, pool) {
+    if (mutation.mutation_type === 'car') {
+        return pool.find((car) => car.id === mutation.target_car_id) ?? null;
+    }
+
+    if (mutation.mutation_type === 'filter') {
+        const matches = pool.filter((car) => matchesFilter(car, mutation.filter_json));
         return randomPick(matches);
     }
 
     return null;
 }
 
-function applyGuaranteeMutations(mutations, eligibleCars, byRarity) {
+/**
+ * 100% mutations resolve from the full catalog (bypass pack eligibility).
+ * Missing targets / empty filter matches are logged, not silently dropped.
+ */
+async function resolveGuaranteeCar(mutation, cars) {
+    if (mutation.mutation_type === 'car') {
+        if (mutation.target_car_id == null) {
+            return null;
+        }
+
+        return cars.findById(mutation.target_car_id);
+    }
+
+    if (mutation.mutation_type === 'filter') {
+        const matches = await cars.findEligible({
+            rule_type: 'filter',
+            filter_json: mutation.filter_json ?? {},
+        });
+        return randomPick(matches);
+    }
+
+    return null;
+}
+
+async function applyGuaranteeMutations(mutations, cars, logContext) {
     const cards = [];
 
     for (const mutation of mutations) {
@@ -111,16 +147,24 @@ function applyGuaranteeMutations(mutations, eligibleCars, byRarity) {
             continue;
         }
 
-        const car = pickFromMutation(mutation, eligibleCars, byRarity);
+        const car = await resolveGuaranteeCar(mutation, cars);
         if (car) {
             cards.push(car);
+            continue;
         }
+
+        logger.warn('pack_guarantee_unresolved', {
+            ...logContext,
+            mutationId: mutation.id,
+            mutationType: mutation.mutation_type,
+            targetCarId: mutation.target_car_id ?? null,
+        });
     }
 
     return cards;
 }
 
-function tryBonusMutation(mutations, drawnRarity, eligibleCars, byRarity) {
+function tryBonusMutation(mutations, drawnRarity, eligibleCars) {
     for (const mutation of mutations) {
         const chance = Number(mutation.chance_percent);
         if (chance >= 100 || chance <= 0) {
@@ -132,7 +176,7 @@ function tryBonusMutation(mutations, drawnRarity, eligibleCars, byRarity) {
         }
 
         if (randomInt(0, 100) < chance) {
-            const car = pickFromMutation(mutation, eligibleCars, byRarity);
+            const car = pickFromMutation(mutation, eligibleCars);
             if (car) {
                 return car;
             }
@@ -219,7 +263,9 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 
         const byRarity = groupCarsByRarity(eligibleCars);
         const availableRarities = [...byRarity.keys()];
-        const guaranteeCards = applyGuaranteeMutations(mutations, eligibleCars, byRarity);
+        const logContext = { packId: pack.id, packSlug: pack.slug };
+
+        const guaranteeCards = await applyGuaranteeMutations(mutations, cars, logContext);
         const cards = [...guaranteeCards];
 
         const slotsToFill = Math.max(0, size - cards.length);
@@ -229,14 +275,13 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 
             if (rarity == null) {
                 logger.warn('pack_draw_no_rarity', {
-                    packId: pack.id,
-                    packSlug: pack.slug,
+                    ...logContext,
                     slot,
                 });
                 continue;
             }
 
-            const bonusCar = tryBonusMutation(mutations, rarity, eligibleCars, byRarity);
+            const bonusCar = tryBonusMutation(mutations, rarity, eligibleCars);
             if (bonusCar) {
                 cards.push(bonusCar);
                 continue;
@@ -245,8 +290,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             const car = pickCarAtRarity(byRarity, rarity);
             if (!car) {
                 logger.warn('pack_draw_empty_rarity_tier', {
-                    packId: pack.id,
-                    packSlug: pack.slug,
+                    ...logContext,
                     rarity,
                     slot,
                 });
@@ -288,6 +332,7 @@ module.exports = {
     createPackService,
     CAR_POOL_CACHE_KEY,
     matchesFilter,
+    mutationResolvableInPool,
     resolveEligibleCars,
     sortCardsByRarity,
     RESERVED_DEFAULT_PACK_ID,

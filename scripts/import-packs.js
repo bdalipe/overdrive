@@ -34,6 +34,7 @@ async function main() {
         const drop = readDropFile(filename);
         const result = await applyPackDrop({
             packRepository: repositories.packs,
+            carRepository: repositories.cars,
             dropRateService: services.dropRates,
             configChangeRepository: repositories.configChanges,
             actorId,

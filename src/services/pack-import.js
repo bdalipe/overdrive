@@ -9,6 +9,7 @@ const {
     buildPackCatalogImportEvent,
     logConfigChange,
 } = require('./config-change-events');
+const { mutationResolvableInPool } = require('./pack-service');
 
 async function snapshotPack(packRepository, packId) {
     const [pack, dropRates, eligibility, mutations] = await Promise.all([
@@ -44,6 +45,80 @@ async function assignPackId(packRepository, explicitId) {
     });
 }
 
+function defaultEligibility() {
+    return { rule_type: 'all_cars', filter_json: null, explicit_car_ids: null };
+}
+
+/**
+ * Bonus (&lt;100%) mutations must resolve inside pack eligibility.
+ * Guarantees (100%) may bypass eligibility and are not checked here.
+ */
+async function assertBonusMutationsWithinEligibility(
+    carRepository,
+    eligibility,
+    mutations,
+    packSlug,
+) {
+    const bonuses = (mutations ?? []).filter((mutation) => {
+        const chance = Number(mutation.chance_percent);
+        return chance > 0 && chance < 100;
+    });
+
+    if (bonuses.length === 0) {
+        return;
+    }
+
+    const eligibleCars = await carRepository.findEligible(eligibility);
+
+    for (const mutation of bonuses) {
+        if (mutationResolvableInPool(mutation, eligibleCars)) {
+            continue;
+        }
+
+        const target =
+            mutation.mutation_type === 'car'
+                ? ` target_car_id=${mutation.target_car_id}`
+                : ' (filter mutation)';
+
+        throw new Error(
+            `Bonus mutation outside pack eligibility for "${packSlug}":` +
+                ` mutation_type=${mutation.mutation_type}${target}` +
+                ` chance_percent=${mutation.chance_percent}.` +
+                ' Use chance_percent 100 to bypass eligibility, or adjust eligibility/mutation.',
+        );
+    }
+}
+
+async function planMutationsAfterDrop(packRepository, packId, mutationsInput, { isCreate }) {
+    if (!mutationsInput) {
+        if (isCreate) {
+            return [];
+        }
+
+        return packRepository.getMutations(packId);
+    }
+
+    let current = [];
+
+    if (!isCreate) {
+        current = await packRepository.getMutations(packId);
+        const replace = Boolean(mutationsInput.replace);
+        const removeIds = mutationsInput.remove_ids ?? [];
+
+        if (replace) {
+            current = [];
+        } else if (removeIds.length > 0) {
+            const removeSet = new Set(removeIds.map((id) => Number(id)));
+            current = current.filter((mutation) => !removeSet.has(Number(mutation.id)));
+        }
+    }
+
+    const toAdd = mutationsInput.add ?? mutationsInput.set ?? [];
+    const normalizedAdds = toAdd.map((entry) => normalizeMutationInput(entry));
+
+    return [...current, ...normalizedAdds];
+}
+
 async function applyMutations(packRepository, packId, mutationsInput) {
     if (!mutationsInput) {
         return;
@@ -67,6 +142,7 @@ async function applyMutations(packRepository, packId, mutationsInput) {
 
 async function applyPackEntry({
     packRepository,
+    carRepository,
     dropRateService,
     configChangeRepository,
     actorId,
@@ -92,6 +168,31 @@ async function applyPackEntry({
     const before = existing ? await snapshotPack(packRepository, existing.id) : null;
     let pack;
 
+    const effectiveEligibility = entry.eligibility
+        ? normalizeEligibilityInput(entry.eligibility)
+        : isCreate
+          ? defaultEligibility()
+          : null;
+
+    if (entry.eligibility || entry.mutations || isCreate) {
+        const eligibilityForCheck =
+            effectiveEligibility ?? (await packRepository.getEligibility(existing.id));
+
+        const plannedMutations = await planMutationsAfterDrop(
+            packRepository,
+            existing?.id,
+            entry.mutations,
+            { isCreate },
+        );
+
+        await assertBonusMutationsWithinEligibility(
+            carRepository,
+            eligibilityForCheck,
+            plannedMutations,
+            entry.slug,
+        );
+    }
+
     if (isCreate) {
         const definition = normalizePackDefinitionInput(entry);
         const packId = await assignPackId(packRepository, definition.id ?? null);
@@ -114,10 +215,7 @@ async function applyPackEntry({
         const weights = await dropRateService.buildWeightsForCreate(ratePatch);
         await packRepository.setDropRates(pack.id, weights);
 
-        const eligibility = entry.eligibility
-            ? normalizeEligibilityInput(entry.eligibility)
-            : { rule_type: 'all_cars', filter_json: null, explicit_car_ids: null };
-
+        const eligibility = effectiveEligibility ?? defaultEligibility();
         await packRepository.setEligibility(pack.id, eligibility);
         await applyMutations(packRepository, pack.id, entry.mutations);
     } else {
@@ -157,8 +255,7 @@ async function applyPackEntry({
         }
 
         if (entry.eligibility) {
-            const eligibility = normalizeEligibilityInput(entry.eligibility);
-            await packRepository.setEligibility(pack.id, eligibility);
+            await packRepository.setEligibility(pack.id, effectiveEligibility);
         }
 
         await applyMutations(packRepository, pack.id, entry.mutations);
@@ -189,6 +286,7 @@ async function applyPackEntry({
 
 async function applyPackDrop({
     packRepository,
+    carRepository,
     dropRateService,
     configChangeRepository,
     actorId,
@@ -206,6 +304,7 @@ async function applyPackDrop({
     for (const entry of packs) {
         const result = await applyPackEntry({
             packRepository,
+            carRepository,
             dropRateService,
             configChangeRepository,
             actorId,
@@ -226,4 +325,5 @@ module.exports = {
     applyPackDrop,
     applyPackEntry,
     snapshotPack,
+    assertBonusMutationsWithinEligibility,
 };
