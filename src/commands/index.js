@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const admin = require('./admin');
+const debugLatency = require('./admin/debug-latency');
 const hello = require('./hello');
 const openPack = require('./open-pack');
 
@@ -28,6 +29,10 @@ const buttonHandlers = [
     {
         prefix: openPack.paginationPrefix,
         handle: openPack.handleButton,
+    },
+    {
+        prefix: debugLatency.paginationPrefix,
+        handle: debugLatency.handleButton,
     },
 ];
 
