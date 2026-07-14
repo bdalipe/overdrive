@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed (post-M1 harden-hygiene → target `0.2.3`)
 - Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
 - Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
+- Pack config invalidate clears `pack:default` only when the target pack is the default
 
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)

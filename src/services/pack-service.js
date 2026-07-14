@@ -392,7 +392,11 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         loadPackConfig,
         loadAllCars,
         loadEligibleCars,
-        invalidatePackConfig: (id) => cache.invalidatePack(id),
+        invalidatePackConfig: (id, options = {}) => {
+            const isDefault =
+                options.isDefault === true || Number(id) === RESERVED_DEFAULT_PACK_ID;
+            cache.invalidatePack(id, { isDefault });
+        },
         invalidateCarPool,
         clearPackConfigCache: () => cache.clear(),
         RESERVED_DEFAULT_PACK_ID,

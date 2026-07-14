@@ -84,10 +84,27 @@ function createPackConfigCache({ ttlMs = DEFAULT_TTL_MS } = {}) {
         }
     }
 
-    function invalidatePack(packId) {
+    /**
+     * Drop pack row + config caches for `packId`.
+     * Clears `pack:default` only when this pack is the default (explicit flag or cached row).
+     * @param {number|string} packId
+     * @param {{ isDefault?: boolean }} [options]
+     */
+    function invalidatePack(packId, { isDefault = false } = {}) {
+        const cachedPack = get(`pack:${packId}`);
+        const cachedDefault = get('pack:default');
+
         invalidate(`pack:${packId}`);
-        invalidate(`pack:default`);
         invalidate(`config:${packId}`);
+
+        const clearDefault =
+            isDefault === true ||
+            cachedPack?.is_default === true ||
+            (cachedDefault != null && Number(cachedDefault.id) === Number(packId));
+
+        if (clearDefault) {
+            invalidate('pack:default');
+        }
     }
 
     function clear() {
