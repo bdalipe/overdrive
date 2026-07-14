@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.1.6` (Phase 1 M1 complete on branch; target `0.2.0` on merge to `develop` with `version:minor`)
+**Version:** `0.2.1` (Phase 1 M1 + post-M1 correctness on `develop`; this branch targets `0.2.2` on merge with `version:patch`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility query, delete APIs, debug admin | **Complete** (target `0.2.0` on merge with `version:minor`) |
+| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes; post-M1 patches (catalog scale, pack guards, cache/integrity) | **Complete** (`0.2.0`+; next patch `0.2.2` on this branch) |
 | **2** — Pack definitions | *(absorbed into Phase 1)* — themed pack create/edit via `import-packs`; picker UX moved to Phase 1 | **Merged into Phase 1** |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -58,12 +58,14 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | In-memory pack config cache (60s TTL: pack row, rates, eligibility, mutations) | Done |
 | `pack-stats-events` (`pack_open` + per-card `pull`) | Done |
 | Image URL fetch validation (omit dead links; probe cache + trusted Supabase hosts) | Done |
-| Open-path latency polish (`feature/p1-latency-polish`) | Done |
+| Open-path latency polish (parallel stats + image validation) | Done |
 | Pack catalog import (`import-packs`, `data/packs/drops/`) | Done |
 | Config change audit log (`config_change_events`, car + pack imports) | Done |
 | `/admin debug-latency` (diagnostics only) | Done |
 | `/admin clear-cache` (live bot pack/car/image cache) | Done |
 | `pack_size` max 50 (app + DB CHECK) + default-pack delete trigger (`007`) | Done |
+| `/open-pack` reveal sessions keyed by message id | Done |
+| Pack create mid-failure rollback (`import-packs`) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
@@ -130,7 +132,7 @@ Apply schema migrations to your linked project (dev is enough until prod goes li
 
 1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and run `supabase login`.
 2. From the repo root: `supabase link --project-ref <your-project-ref>`.
-3. Apply migrations: `supabase db push`.
+3. Apply migrations: `supabase db push` (includes `007_pack_integrity_guards.sql` for `pack_size` bounds and default-pack delete protection).
 4. Copy **Project URL** and **secret** (or legacy **service_role**) key from Project Settings → API into `.env` / `.env.dev` as `SUPABASE_URL` and `SUPABASE_SECRET_KEY`.
 
 Migrations live under `supabase/migrations/`. After `db push`, seed a dev catalog:
@@ -309,7 +311,7 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (latency-polish branch): `package.json` = `0.1.5`, CHANGELOG `## [0.1.6]`, label `version:patch`.
+Example (this branch): `package.json` = `0.2.1`, CHANGELOG `## [0.2.2]`, label `version:patch`.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -351,8 +353,10 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Pack catalog import (`import-packs`, `data/packs/drops/`) — create/patch themed + default packs
 - [x] Config change audit (`config_change_events`) for car and pack imports
 - [x] `/admin debug-latency` (pack slash admin removed)
-- [x] `/admin clear-cache` (live bot pack/car/image in-process caches)
+- [x] `/admin clear-cache` + catalog script refresh hints (live bot cache is separate from script invalidate)
 - [x] `pack_size` 1–50 + default-pack DB delete guard (`007_pack_integrity_guards.sql`)
+- [x] `/open-pack` reveal sessions keyed by message id (15 min TTL)
+- [x] Pack create mid-failure rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
@@ -397,6 +401,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise)
 - **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
 - **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
+- **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write are not auto-reverted
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`
 - **Card composition** — car photo base + separate overlay components; each toggleable

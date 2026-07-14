@@ -8,25 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Fixed (post-M1 harden-correctness → target `0.2.1`)
-- Paginate `cars.listAll` / `findEligible` past PostgREST row caps
-- `100%` pack mutations bypass eligibility; unresolved guarantees log; bonuses outside eligibility rejected at `import-packs`
-- Import rejects when guarantee count exceeds `pack_size`
-- Weighted rarity miss falls back to uniform pick among pool rarities; opens fail if card count ≠ `pack_size` (stats `packSize` matches configured size)
-- Warn when active packs exceed Discord’s 25 `/open-pack` choices (`import-packs` + `register-commands`)
-
-### Changed (post-M1 harden-integrity → target `0.2.1`)
-- `/admin clear-cache` clears this bot process pack config, car pool, and image probe caches
-- Catalog scripts log `bot_cache_refresh_hint` after invalidate (live bot is a separate process; use clear-cache, restart, or TTL)
-- `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
-- Cap `pack_size` at **1–50** for now (`MAX_PACK_SIZE`) and DB CHECK; pack summary embed truncates at Discord 4096 chars
-- Migration `007_pack_integrity_guards.sql`: `pack_size` CHECK + `BEFORE DELETE` trigger blocking default-pack deletion
-- `/open-pack` reveal sessions keyed by message id (concurrent opens no longer clobber each other’s buttons)
-- Failed pack **creates** roll back the new pack row (CASCADE children); earlier creates in the same drop also roll back if a later entry fails (drop stays pending)
-
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
-- Multi-embed / multi-message pack opens (raise `pack_size` past single-message limits safely)
+- Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 
@@ -36,6 +20,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.2.2] - 2026-07-13
+
+Post-M1 pack/cache integrity follow-up. `package.json` is set to `0.2.1` on this branch so the automated patch bump on merge to `develop` lands at `0.2.2`. Apply migration `007_pack_integrity_guards.sql` (`supabase db push`) and re-run `npm run register-commands` for `/admin clear-cache`.
+
+### Added
+- `/admin clear-cache` — clears this bot process pack config, car pool, and image probe caches
+- Migration `007_pack_integrity_guards.sql` — `pack_size` CHECK (1–50) and `BEFORE DELETE` trigger blocking default-pack deletion
+- `scripts/lib/bot-cache-hint.js` — warns after catalog scripts that in-process invalidate does not reach the live bot
+
+### Changed
+- Catalog scripts log `bot_cache_refresh_hint` after invalidate (use `/admin clear-cache`, restart, or ~60s TTL)
+- `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
+- Cap `pack_size` at **1–50** (`MAX_PACK_SIZE`) in app and DB; pack summary embed truncates at Discord’s 4096-character description limit
+- `/open-pack` reveal sessions keyed by **message id** (concurrent opens no longer clobber each other’s buttons)
+- Failed pack **creates** roll back the new pack row (CASCADE children); earlier creates in the same drop also roll back if a later entry fails (drop stays pending)
+
+### Documentation
+- README: admin clear-cache, restart/TTL table, `pack_size` / default-delete / session and import rollback notes; setup mentions migration `007`
+- Pack drops README: `pack_size` 1–50 and create-rollback / manifest behavior
+
+---
+
+## [0.2.1] - 2026-07-10
+
+Post-M1 correctness follow-up (catalog pagination and pack open/import guards).
+
+### Fixed
+- Paginate `cars.listAll` / `findEligible` past PostgREST row caps
+- `100%` pack mutations bypass eligibility; unresolved guarantees log; bonuses outside eligibility rejected at `import-packs`
+- Import rejects when guarantee count exceeds `pack_size`
+- Weighted rarity miss falls back to uniform pick among pool rarities; opens fail if card count ≠ `pack_size` (stats `packSize` matches configured size)
+- Warn when active packs exceed Discord’s 25 `/open-pack` choices (`import-packs` + `register-commands`)
 
 ---
 
@@ -184,7 +203,9 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 ### Documentation
 - README development status, setup, versioning, and phased roadmap
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.2.0...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/bdalipe/overdrive/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/bdalipe/overdrive/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/bdalipe/overdrive/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/bdalipe/overdrive/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5
