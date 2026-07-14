@@ -15,11 +15,10 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes; post-M1 patches (catalog scale, pack guards, cache/integrity; hygiene in progress) | **Complete** (`0.2.0`+; next patch `0.2.3` on this branch) |
-| **2** — Pack definitions | *(absorbed into Phase 1)* — themed pack create/edit via `import-packs`; picker UX moved to Phase 1 | **Merged into Phase 1** |
-| **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
-| **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
-| **5** — Collection & profile | M5: garage, wishlist, profile, view-card, **Wispbyte prod deploy** | Not started |
+| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes (themed packs via `import-packs`; no Discord pack-admin UX); post-M1 patches (hygiene → `0.2.3`) | **Complete** (`0.2.0`+; next patch `0.2.3` on this branch) |
+| **2** — Card composition | M2: modular card image composer, per-component toggles, pack reveal images | Not started |
+| **3** — Performance engine | M3: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
+| **4** — Collection & profile | M4: garage, wishlist, profile, view-card, **Wispbyte prod deploy** | Not started |
 
 ### Phase 0 checklist
 
@@ -70,7 +69,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
 
-**Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 5** (after M5). Phases 0–4 use the **dev bot on your PC**.
+**Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 4** (after M4). Phases 0–3 use the **dev bot on your PC**.
 
 ### Commands available today
 
@@ -234,7 +233,7 @@ src/
 ├── models/               # Domain models (car + pack import normalization)
 ├── repositories/         # Supabase persistence (cars, packs, stats, config_change_events)
 ├── services/             # drop-rate, pack-service, pack-import, config-change-events, createServices
-├── renderers/            # embeds.js (lightweight/admin), pack-reveal.js, card-display.js; card/ (Phase 3+)
+├── renderers/            # embeds.js (lightweight/admin), pack-reveal.js, card-display.js; card/ (Phase 2+)
 └── shared/               # config, logger, metrics, theme, image-url, supabase, generate-serial-id
 data/catalog/             # manifest.json + drops/ (car JSON content drops)
 data/packs/               # manifest.json + drops/ (pack config drops)
@@ -258,26 +257,26 @@ One codebase, two bot runtimes (separate Discord applications):
 | Branch | `develop` | `main` |
 | Credentials | Dev token, dev guild | Prod token, live guild |
 | Registration | `BOT_ENV=dev npm run register-commands` | `BOT_ENV=prod npm run register-commands` |
-| Hosting (Phases 0–4) | Local PC (`npm run dev`) | Not deployed yet |
-| Hosting (end of Phase 5) | Local PC (dev bot) | Wispbyte Tier 1+ (24/7 prod bot) |
+| Hosting (Phases 0–3) | Local PC (`npm run dev`) | Not deployed yet |
+| Hosting (end of Phase 4) | Local PC (dev bot) | Wispbyte Tier 1+ (24/7 prod bot) |
 
-During Phases 0–4, run the **dev bot locally**. Deploy the **prod bot to Wispbyte** once Phase 5 (M5) is complete.
+During Phases 0–3, run the **dev bot locally**. Deploy the **prod bot to Wispbyte** once Phase 4 (M4) is complete.
 
 ---
 
-## Hosting (Wispbyte — end of Phase 5)
+## Hosting (Wispbyte — end of Phase 4)
 
 Production hosting uses **Wispbyte** Discord bot hosting (Tier 1 or higher recommended; consider more RAM once card composition is live).
 
 | Concern | Approach |
 |---------|----------|
-| **When** | After M5 acceptance |
+| **When** | After M4 acceptance |
 | **What deploys** | **Prod bot only** (`BOT_ENV=prod`, `main` branch) |
 | **Dev bot** | Stays on your PC (`npm run dev`) |
 | **Start command** | `npm start` |
 | **Secrets** | Wispbyte panel — never commit |
 
-**Pre-deploy checklist (M5):** merge to `main`, register prod commands, smoke-test packs (with composed cards), garage, `/calc-performance`, profile, wishlist; verify panel auto-restart.
+**Pre-deploy checklist (M4):** merge to `main`, register prod commands, smoke-test packs (with composed cards), garage, `/calc-performance`, profile, wishlist; verify panel auto-restart.
 
 ---
 
@@ -295,7 +294,7 @@ PRs into `develop` must include a **version label** and a **synced README + CHAN
 
 ## Versioning
 
-Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.x.y` during Phases 0–5).
+Overdrive uses [Semantic Versioning](https://semver.org/) in `package.json` (`0.x.y` during Phases 0–4).
 
 ### README & CHANGELOG discipline (mandatory)
 
@@ -327,7 +326,9 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 
 ---
 
-## Roadmap (Phases 0–5)
+## Roadmap (Phases 0–4)
+
+> Former standalone “pack definitions / Discord pack-admin” phase was **collapsed into Phase 1**. Later phases shifted down by one (card composition is Phase 2, … Wispbyte at Phase 4 / M4).
 
 ### Phase 0 — Foundation ✅
 - [x] Modular architecture, `/hello`, dev tooling, SemVer CI
@@ -350,7 +351,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Image URL reachability (`shared/image-url.js`): probe cache, trusted Supabase Storage skip, 2s timeout; omit dead links on reveal
 - [x] Open-path latency: parallel stats + image validation; `loadAllCars()` pool cache for `all_cars` packs (60s TTL, `invalidateCarPool`; in-process only)
 - [x] Interim pack reveal: title + image + rarity accent (`pack-reveal.js`, `theme.js`); card count excludes summary page
-- [x] Pack catalog import (`import-packs`, `data/packs/drops/`) — create/patch themed + default packs
+- [x] Pack catalog import (`import-packs`, `data/packs/drops/`) — create/patch themed + default packs (**not** Discord `/admin pack` wizards)
 - [x] Config change audit (`config_change_events`) for car and pack imports
 - [x] `/admin debug-latency` (pack slash admin removed)
 - [x] `/admin clear-cache` + catalog script refresh hints (live bot cache is separate from script invalidate)
@@ -361,35 +362,33 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
 
-### Phase 2 — Pack definitions *(absorbed into Phase 1)*
-
-Themed pack **create/edit** and mutations are maintained via `data/packs/drops/` + `import-packs`. Former Phase 2 UX:
-
-- [x] User pack picker on `/open-pack` (choice list of active packs)
-- [x] `car-repository.findEligible`
-
-### Phase 3 — Modular card composition
+### Phase 2 — Modular card composition
 - [ ] Per-component renderers (name, rarity, stats, optional performance block)
 - [ ] Compose-all-then-display pipeline for embed images
-- [ ] Component toggles (performance **off** until Phase 4)
+- [ ] Component toggles (performance **off** until Phase 3)
 - [ ] Reference layout: `assets/card/example_template.png` (non-final)
 - [ ] *(Goal)* Multi-embed / multi-message pack opens so large `pack_size` values stay under Discord limits (today’s cap is 50)
 - [ ] *(Goal)* Revisit reachability checks for trusted Storage image URLs
+- [ ] *(Goal)* Bound concurrent image URL probes for non-trusted hosts
 - [ ] *(Goal)* Keep pack eligibility filters consistent across SQL and in-memory paths
 
-### Phase 4 — Performance engine
+### Phase 3 — Performance engine
 - [ ] Tracksets + per-stat weights + surface modifiers (draft rules)
 - [ ] Weight derivation from trackset; calculator → rating 0–1000+ and class **P/S/A/B/C/D/E/F** (draft bands in [docs/performance-formulas-draft.md](docs/performance-formulas-draft.md))
 - [ ] `/calc-performance` + bulk recalc on formula/weight changes
 - [ ] Workshop: [docs/performance-formulas-draft.md](docs/performance-formulas-draft.md)
 
-### Phase 5 — Collection & profile
+### Phase 4 — Collection & profile
 - [ ] Garage, wishlist, settings, profile
 - [ ] `/view-card` using card composer
 - [ ] **Wispbyte prod deployment**
 - [ ] RLS deny-by-default for anon/authenticated before any non–service-role client
 
-Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
+### Phases 5+ (future, beyond M4)
+- **5 — Economy:** currency ledger, sources/sinks, anti-abuse
+- **6 — Upgrades:** card progression sinks
+- **7 — Live races & Gauntlet:** race framework on Phase 3 tracks; **Gauntlet** = high-risk/high-reward run (N cars / N rounds, each car once; fog-of-war later rounds; cash-out vs push; loss → nothing). Details after currency + races exist.
+- **8 — Campaign:** story chapters on the event framework
 
 ---
 
@@ -399,7 +398,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
-- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phases 1–2):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 3 compose and future commands.
+- **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phase 1 interim):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 2 compose and future commands.
 - **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise)
 - **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
@@ -408,10 +407,10 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`
 - **Card composition** — car photo base + separate overlay components; each toggleable
-- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, admin ping/latency tests); `pack-reveal.js` for `/open-pack` pages (title, optional image, summary); `card-display.js` for stat formatting; Phase 3 `renderers/card/` for composed images
-- **Pack reveal UX (Phases 1–2)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`); in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent
+- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, admin ping/latency tests); `pack-reveal.js` for `/open-pack` pages (title, optional image, summary); `card-display.js` for stat formatting; Phase 2 `renderers/card/` for composed images
+- **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`); in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent
 - **Stats events** — each successful `/open-pack` appends `pack_open` plus one `pull` per card to `stats_events` (`pack-stats-events.js`); `packSize` matches configured `pack_size` (opens that cannot fill that many cards fail before stats). Insert failures are logged and do not block the reveal
-- **Performance in schema** nullable until Phase 4 calculator fills ratings
+- **Performance in schema** nullable until Phase 3 calculator fills ratings
 - **Multi-pack** — default + themed packs via `import-packs`; `/open-pack` required `pack` choice list from active packs (**Discord max 25**; extras are omitted — `import-packs` / `register-commands` log `open_pack_choices_truncated`; re-run `register-commands` after pack imports)
 - **Future web portability** — domain logic isolated from Discord wiring
 

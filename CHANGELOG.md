@@ -12,21 +12,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
 - Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
 - Pack config invalidate clears `pack:default` only when the target pack is the default
+- Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
 
-### Planned (Phase 3+)
+### Planned (Phase 2+)
 - Modular card image composer (per-component toggles; performance block off by default)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
 - Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
+- Bound concurrent image reachability probes when validating non-trusted URLs
 - Keep pack eligibility filter logic aligned between in-memory and SQL paths
-- Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
-- Phase 5: Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
+- Phase 3: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
+- Phase 4: Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
+- Phase 5+: Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
 
 ### Deferred
 - Metrics start/complete for modals/autocomplete when those interaction types are added
 - Imperial/metric display toggle
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
-- Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+- Phase 2/3 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
 - Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
 - Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 
