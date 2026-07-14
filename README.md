@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.2.1` (Phase 1 M1 + post-M1 correctness on `develop`; this branch targets `0.2.2` on merge with `version:patch`)
+**Version:** `0.2.2` (on `develop`; this branch targets `0.2.3` on merge with `version:patch`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes; post-M1 patches (catalog scale, pack guards, cache/integrity) | **Complete** (`0.2.0`+; next patch `0.2.2` on this branch) |
+| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes; post-M1 patches (catalog scale, pack guards, cache/integrity; hygiene in progress) | **Complete** (`0.2.0`+; next patch `0.2.3` on this branch) |
 | **2** — Pack definitions | *(absorbed into Phase 1)* — themed pack create/edit via `import-packs`; picker UX moved to Phase 1 | **Merged into Phase 1** |
 | **3** — Card composition | M3: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **4** — Performance engine | M4: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
@@ -55,7 +55,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Rarity accent colors on reveal embeds (`shared/theme.js`) | Done |
 | Skip-to-summary page + green Skip button; summary high→low rarity | Done |
 | Prebuilt pagination payloads (faster Prev/Next/Skip) | Done |
-| In-memory pack config cache (60s TTL: pack row, rates, eligibility, mutations) | Done |
+| In-memory pack config cache (60s TTL: pack row, rates, eligibility, mutations; in-flight coalesce) | Done |
 | `pack-stats-events` (`pack_open` + per-card `pull`) | Done |
 | Image URL fetch validation (omit dead links; probe cache + trusted Supabase hosts) | Done |
 | Open-path latency polish (parallel stats + image validation) | Done |
@@ -311,7 +311,7 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (this branch): `package.json` = `0.2.1`, CHANGELOG `## [0.2.2]`, label `version:patch`.
+Example (this branch): `package.json` = `0.2.2`, CHANGELOG target `0.2.3`, label `version:patch`.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -374,6 +374,8 @@ Themed pack **create/edit** and mutations are maintained via `data/packs/drops/`
 - [ ] Component toggles (performance **off** until Phase 4)
 - [ ] Reference layout: `assets/card/example_template.png` (non-final)
 - [ ] *(Goal)* Multi-embed / multi-message pack opens so large `pack_size` values stay under Discord limits (today’s cap is 50)
+- [ ] *(Goal)* Revisit reachability checks for trusted Storage image URLs
+- [ ] *(Goal)* Keep pack eligibility filters consistent across SQL and in-memory paths
 
 ### Phase 4 — Performance engine
 - [ ] Tracksets + per-stat weights + surface modifiers (draft rules)
@@ -385,6 +387,7 @@ Themed pack **create/edit** and mutations are maintained via `data/packs/drops/`
 - [ ] Garage, wishlist, settings, profile
 - [ ] `/view-card` using card composer
 - [ ] **Wispbyte prod deployment**
+- [ ] RLS deny-by-default for anon/authenticated before any non–service-role client
 
 Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
@@ -392,7 +395,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); **filter / explicit_ids** packs call `findEligible` on each open (not cached). Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); **filter / explicit_ids** packs call `findEligible` on each open (not cached). Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision

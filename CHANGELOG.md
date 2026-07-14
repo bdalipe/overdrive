@@ -8,11 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed (post-M1 harden-hygiene → target `0.2.3`)
+- Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
+
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
+- Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
+- Keep pack eligibility filter logic aligned between in-memory and SQL paths
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
-- Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
+- Phase 5: Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
 
 ### Deferred
 - Metrics start/complete for modals/autocomplete when those interaction types are added
@@ -20,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+- Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
+- Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 
 ---
 
