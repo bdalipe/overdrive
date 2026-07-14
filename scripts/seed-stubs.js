@@ -2,9 +2,11 @@ const { randomInt } = require('crypto');
 const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
+const { createServices } = require('../src/services');
 const { generateSerialId } = require('../src/shared/generate-serial-id');
 const { createStubCar } = require('../src/models/car');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 
 const DEFAULT_COUNT = 30;
 
@@ -28,7 +30,9 @@ async function main() {
     const count = parseCount(process.argv.slice(2));
     const config = loadEnv();
     const supabase = createSupabaseClient(config);
-    const { cars: carRepo } = createRepositories(supabase);
+    const repositories = createRepositories(supabase);
+    const services = createServices(repositories);
+    const { cars: carRepo } = repositories;
 
     const stubs = [];
 
@@ -48,6 +52,9 @@ async function main() {
     }
 
     await carRepo.upsertMany(stubs);
+
+    services.packs.invalidateCarPool();
+    logBotCacheRefreshHint(logger, { scope: 'seed-stubs', affected: 'car-pool' });
 
     logger.info('seed_stubs_complete', {
         botEnv: config.botEnv,

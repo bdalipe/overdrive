@@ -7,6 +7,7 @@ const { resolveMaintainerActorId } = require('../src/services/config-change-even
 const { applyPackDrop } = require('../src/services/pack-import');
 const openPack = require('../src/commands/open-pack');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 const {
     readManifest,
     writeManifest,
@@ -47,8 +48,6 @@ async function main() {
             services.packs.invalidatePackConfig(packResult.packId);
         }
 
-        services.packs.invalidateCarPool();
-
         manifest.applied.push(filename);
         appliedNow.push({ filename, ...result });
 
@@ -65,6 +64,7 @@ async function main() {
 
     const activePacks = await repositories.packs.listActive();
     openPack.warnIfActivePacksExceedChoiceLimit(activePacks, 'import-packs');
+    logBotCacheRefreshHint(logger, { scope: 'import-packs', affected: 'pack-config' });
 
     logger.info('import_packs_complete', {
         botEnv: config.botEnv,

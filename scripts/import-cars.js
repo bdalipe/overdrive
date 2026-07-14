@@ -2,6 +2,7 @@ const path = require('path');
 const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
+const { createServices } = require('../src/services');
 const {
     buildCarCatalogImportEvent,
     logConfigChange,
@@ -10,6 +11,7 @@ const {
 const { generateSerialId } = require('../src/shared/generate-serial-id');
 const { normalizeCarForDb } = require('../src/models/car');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 const {
     readManifest,
     writeManifest,
@@ -67,6 +69,7 @@ async function main() {
     const config = loadEnv();
     const supabase = createSupabaseClient(config);
     const repositories = createRepositories(supabase);
+    const services = createServices(repositories);
     const actorId = resolveMaintainerActorId(config);
 
     const { manifest, manifestPath } = readManifest(config.botEnv);
@@ -102,6 +105,9 @@ async function main() {
     manifest.pending = manifest.pending.filter((name) => !pending.includes(name));
     manifest.lastUpdated = new Date().toISOString();
     writeManifest(manifestPath, manifest);
+
+    services.packs.invalidateCarPool();
+    logBotCacheRefreshHint(logger, { scope: 'import-cars', affected: 'car-pool' });
 
     logger.info('import_cars_complete', {
         botEnv: config.botEnv,

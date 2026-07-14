@@ -9,6 +9,7 @@ const {
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 
 function parseSlugs(argv) {
     const flagIndex = argv.indexOf('--slugs');
@@ -82,6 +83,10 @@ async function main() {
         );
 
         deleted.push({ packId: existing.id, packSlug: existing.slug });
+    }
+
+    if (deleted.length > 0) {
+        logBotCacheRefreshHint(logger, { scope: 'delete-packs', affected: 'pack-config' });
     }
 
     logger.info('delete_packs_complete', {

@@ -15,6 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Weighted rarity miss falls back to uniform pick among pool rarities; opens fail if card count ≠ `pack_size` (stats `packSize` matches configured size)
 - Warn when active packs exceed Discord’s 25 `/open-pack` choices (`import-packs` + `register-commands`)
 
+### Changed (post-M1 harden-integrity → target `0.2.1`)
+- `/admin clear-cache` clears this bot process pack config, car pool, and image probe caches
+- Catalog scripts log `bot_cache_refresh_hint` after invalidate (live bot is a separate process; use clear-cache, restart, or TTL)
+- `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`

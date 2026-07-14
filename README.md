@@ -62,6 +62,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Pack catalog import (`import-packs`, `data/packs/drops/`) | Done |
 | Config change audit log (`config_change_events`, car + pack imports) | Done |
 | `/admin debug-latency` (diagnostics only) | Done |
+| `/admin clear-cache` (live bot pack/car/image cache) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
@@ -75,6 +76,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `/hello` | Greeting embed with current environment (`dev` / `prod`) |
 | `/open-pack` | Required **pack** dropdown of active packs (e.g. Standard Pack, Test Pack); weighted pulls, paginated reveal, **Skip** to summary; stats to `stats_events` |
 | `/admin debug-latency` | Administrator diagnostics: ping, interaction timings, DB round-trip (paginated reference) |
+| `/admin clear-cache` | Administrator: clear this bot process pack config, car pool, and image probe caches (after catalog imports) |
 
 ---
 
@@ -199,12 +201,12 @@ npm start
 | `npm run dev` | Run bot with `node --watch` — restarts on file save |
 | `npm run register-commands` | Push slash command definitions to Discord (uses `BOT_ENV`) |
 | `npm run dev:register` | Register commands, then start dev watch mode |
-| `npm run import-cars` | Apply car catalog JSON drops to Supabase; update manifest; log `config_change_events` |
-| `npm run import-packs` | Create or patch packs (rates, size, eligibility, mutations); update manifest; log audit |
-| `npm run delete-cars` | Delete cars by id (`-- --ids 123456,234567`); log audit; invalidate car pool |
-| `npm run delete-packs` | Delete non-default packs by slug (`-- --slugs test-pack`); log audit |
-| `npm run clear-stubs` | Delete sparse stub cars (`make`/`model` null); log audit |
-| `npm run seed-stubs` | Insert sparse stub cars for dev (`--count` optional) |
+| `npm run import-cars` | Apply car catalog JSON drops to Supabase; update manifest; log `config_change_events`; invalidate car pool + refresh hint |
+| `npm run import-packs` | Create or patch packs (rates, size, eligibility, mutations); update manifest; log audit; pack-config invalidate + refresh hint |
+| `npm run delete-cars` | Delete cars by id (`-- --ids 123456,234567`); log audit; invalidate car pool (script process) + refresh hint |
+| `npm run delete-packs` | Delete non-default packs by slug (`-- --slugs test-pack`); log audit; pack-config refresh hint |
+| `npm run clear-stubs` | Delete sparse stub cars (`make`/`model` null); log audit; car-pool refresh hint |
+| `npm run seed-stubs` | Insert sparse stub cars for dev (`--count` optional); invalidate car pool + refresh hint |
 
 ### When to re-register vs restart
 
@@ -212,8 +214,8 @@ npm start
 |--------|--------------|--------------|
 | Command handler logic (replies, embeds) | No | Yes (or auto via `dev`) |
 | New / renamed slash command | **Yes** | Yes after register |
-| New / removed / renamed **active packs** (`import-packs`) | **Yes** (`/open-pack` pack choices) | Yes after register (also clears in-process pack cache) |
-| Car catalog import / delete / clear-stubs | No | Yes recommended (car pool cache is in-process; scripts cannot clear the live bot) |
+| New / removed / renamed **active packs** (`import-packs`) | **Yes** (`/open-pack` pack choices) | Prefer `/admin clear-cache` (or restart); re-register for choices |
+| Car catalog import / delete / clear-stubs / seed-stubs | No | Prefer `/admin clear-cache` (or restart / wait ~60s TTL). Script `invalidate*` does not clear the live bot |
 | `.env` token or guild ID | No | Yes |
 
 ---
@@ -348,6 +350,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Pack catalog import (`import-packs`, `data/packs/drops/`) — create/patch themed + default packs
 - [x] Config change audit (`config_change_events`) for car and pack imports
 - [x] `/admin debug-latency` (pack slash admin removed)
+- [x] `/admin clear-cache` (live bot pack/car/image in-process caches)
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
@@ -382,7 +385,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); **filter / explicit_ids** packs call `findEligible` on each open (not cached). Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; restart the bot (or wait for TTL) after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); **filter / explicit_ids** packs call `findEligible` on each open (not cached). Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision

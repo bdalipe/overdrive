@@ -8,6 +8,7 @@ const {
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 
 /**
  * Deletes sparse stub cars (make IS NULL AND model IS NULL) from seed-stubs.
@@ -23,6 +24,7 @@ async function main() {
     const deletedIds = deleted.map((row) => row.id);
 
     services.packs.invalidateCarPool();
+    logBotCacheRefreshHint(logger, { scope: 'clear-stubs', affected: 'car-pool' });
 
     await logConfigChange(
         repositories.configChanges,
