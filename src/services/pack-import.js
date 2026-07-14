@@ -1,5 +1,6 @@
 const { generateSerialId } = require('../shared/generate-serial-id');
 const {
+    assertValidPackSize,
     collectDropRatePatch,
     normalizeEligibilityInput,
     normalizeMutationInput,
@@ -106,19 +107,14 @@ function assertGuaranteeCountWithinPackSize(mutations, packSize, packSlug) {
 
 function resolveEffectivePackSize(entry, existing, isCreate) {
     if (entry.pack_size != null) {
-        const packSize = Number(entry.pack_size);
-        if (!Number.isInteger(packSize) || packSize < 1) {
-            throw new Error(`Invalid pack_size: ${entry.pack_size}`);
-        }
-
-        return packSize;
+        return assertValidPackSize(entry.pack_size);
     }
 
     if (isCreate) {
         return 5;
     }
 
-    return existing.pack_size;
+    return assertValidPackSize(existing.pack_size);
 }
 
 async function planMutationsAfterDrop(packRepository, packId, mutationsInput, { isCreate }) {
@@ -268,11 +264,7 @@ async function applyPackEntry({
         }
 
         if (entry.pack_size != null) {
-            const packSize = Number(entry.pack_size);
-            if (!Number.isInteger(packSize) || packSize < 1) {
-                throw new Error(`Invalid pack_size: ${entry.pack_size}`);
-            }
-            updates.pack_size = packSize;
+            updates.pack_size = assertValidPackSize(entry.pack_size);
         }
 
         if (entry.is_active != null) {

@@ -1,4 +1,5 @@
 const { wrapRepositoryError } = require('./errors');
+const { assertValidPackSize } = require('../models/pack');
 
 const VALID_ELIGIBILITY_RULE_TYPES = new Set(['all_cars', 'filter', 'explicit_ids']);
 const VALID_MUTATION_TYPES = new Set(['car', 'filter']);
@@ -113,13 +114,11 @@ function createPackRepository(supabase) {
     }
 
     async function updatePackSize(packId, packSize) {
-        if (!Number.isInteger(packSize) || packSize < 1) {
-            throw new Error(`Invalid pack size: ${packSize}`);
-        }
+        const validatedSize = assertValidPackSize(packSize);
 
         const { data, error } = await supabase
             .from('pack_definitions')
-            .update({ pack_size: packSize })
+            .update({ pack_size: validatedSize })
             .eq('id', packId)
             .select()
             .single();
@@ -232,6 +231,8 @@ function createPackRepository(supabase) {
         is_active = true,
         description = null,
     }) {
+        const validatedPackSize = assertValidPackSize(pack_size);
+
         if (is_default) {
             const currentDefault = await findDefault();
             if (currentDefault) {
@@ -246,7 +247,7 @@ function createPackRepository(supabase) {
                 slug,
                 name,
                 is_default,
-                pack_size,
+                pack_size: validatedPackSize,
                 is_active,
                 description,
             })
@@ -268,7 +269,7 @@ function createPackRepository(supabase) {
         }
 
         if (fields.pack_size != null) {
-            allowed.pack_size = fields.pack_size;
+            allowed.pack_size = assertValidPackSize(fields.pack_size);
         }
 
         if (fields.is_active != null) {

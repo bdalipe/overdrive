@@ -2,6 +2,7 @@ const { randomInt } = require('crypto');
 const { createDropRateService, rollRarity } = require('./drop-rate-service');
 const { createPackConfigCache } = require('./pack-config-cache');
 const { RESERVED_DEFAULT_PACK_ID } = require('../shared/generate-serial-id');
+const { assertValidPackSize } = require('../models/pack');
 const logger = require('../shared/logger');
 
 const CAR_POOL_CACHE_KEY = 'cars:listAll';
@@ -265,11 +266,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
         const pack = await resolvePack(packId);
-        const size = packSizeOverride ?? pack.pack_size;
-
-        if (!Number.isInteger(size) || size < 1) {
-            throw new Error(`Invalid pack size for pack ${pack.id}: ${size}`);
-        }
+        const size = assertValidPackSize(packSizeOverride ?? pack.pack_size);
 
         const { eligibility, mutations, weights } = await loadPackConfig(pack.id);
         const eligibleCars = await loadEligibleCars(eligibility);
