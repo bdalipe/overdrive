@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
 - Cap `pack_size` at **1–50** for now (`MAX_PACK_SIZE`) and DB CHECK; pack summary embed truncates at Discord 4096 chars
 - Migration `007_pack_integrity_guards.sql`: `pack_size` CHECK + `BEFORE DELETE` trigger blocking default-pack deletion
+- `/open-pack` reveal sessions keyed by message id (concurrent opens no longer clobber each other’s buttons)
 
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
