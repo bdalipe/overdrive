@@ -19,8 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `/admin clear-cache` clears this bot process pack config, car pool, and image probe caches
 - Catalog scripts log `bot_cache_refresh_hint` after invalidate (live bot is a separate process; use clear-cache, restart, or TTL)
 - `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
+- Cap `pack_size` at **1–50** for now (`MAX_PACK_SIZE`) and DB CHECK; pack summary embed truncates at Discord 4096 chars
+- Migration `007_pack_integrity_guards.sql`: `pack_size` CHECK + `BEFORE DELETE` trigger blocking default-pack deletion
+
 ### Planned (Phase 3+)
 - Modular card image composer (per-component toggles; performance block off by default)
+- Multi-embed / multi-message pack opens (raise `pack_size` past single-message limits safely)
 - Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
 

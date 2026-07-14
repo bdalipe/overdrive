@@ -63,6 +63,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Config change audit log (`config_change_events`, car + pack imports) | Done |
 | `/admin debug-latency` (diagnostics only) | Done |
 | `/admin clear-cache` (live bot pack/car/image cache) | Done |
+| `pack_size` max 50 (app + DB CHECK) + default-pack delete trigger (`007`) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
@@ -351,6 +352,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Config change audit (`config_change_events`) for car and pack imports
 - [x] `/admin debug-latency` (pack slash admin removed)
 - [x] `/admin clear-cache` (live bot pack/car/image in-process caches)
+- [x] `pack_size` 1–50 + default-pack DB delete guard (`007_pack_integrity_guards.sql`)
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
@@ -367,6 +369,7 @@ Themed pack **create/edit** and mutations are maintained via `data/packs/drops/`
 - [ ] Compose-all-then-display pipeline for embed images
 - [ ] Component toggles (performance **off** until Phase 4)
 - [ ] Reference layout: `assets/card/example_template.png` (non-final)
+- [ ] *(Goal)* Multi-embed / multi-message pack opens so large `pack_size` values stay under Discord limits (today’s cap is 50)
 
 ### Phase 4 — Performance engine
 - [ ] Tracksets + per-stat weights + surface modifiers (draft rules)
@@ -392,6 +395,8 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phases 1–2):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 3 compose and future commands.
 - **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise)
+- **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
+- **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`
 - **Card composition** — car photo base + separate overlay components; each toggleable
@@ -410,7 +415,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 1. Add a drop file under the appropriate `drops/` folder.
 2. List new filenames in `manifest.json` → `pending` (or let import discover unapplied drops).
 3. Run `npm run import-cars` or `npm run import-packs`.
-4. Apply migration `006_config_change_events.sql` before first import on a fresh DB.
+4. Apply migration `007_pack_integrity_guards.sql` (and prior migrations through `006`) before first import on a fresh DB.
 
 Car and pack imports append audit rows to `config_change_events` (mandatory; failures are logged, import still completes).
 
@@ -424,7 +429,7 @@ npm run clear-stubs                 # make/model both null (seed-stubs rows)
 npm run delete-packs -- --slugs test-pack
 ```
 
-Default pack cannot be deleted. After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes append `config_change_events` rows.
+Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes append `config_change_events` rows.
 
 ---
 
