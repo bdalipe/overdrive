@@ -12,7 +12,7 @@ async function execute(interaction, config) {
         return;
     }
 
-    // clearPackConfigCache wipes the shared Map (pack rows, config, cars:listAll).
+    // clearPackConfigCache wipes pack rows, config, car pool, and filtered eligibility caches.
     packs.clearPackConfigCache();
     packs.invalidateCarPool();
     clearImageUrlCache();
@@ -24,7 +24,7 @@ async function execute(interaction, config) {
 
     await interaction.reply({
         content:
-            'Cleared this bot process cache (pack config, car pool, image probe results). Next opens will reload from the database.',
+            'Cleared this bot process cache (pack config, car pool, filtered eligibility pools, image probe results). Next opens will reload from the database.',
         ephemeral: true,
     });
 }

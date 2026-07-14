@@ -62,7 +62,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Pack catalog import (`import-packs`, `data/packs/drops/`) | Done |
 | Config change audit log (`config_change_events`, car + pack imports) | Done |
 | `/admin debug-latency` (diagnostics only) | Done |
-| `/admin clear-cache` (live bot pack/car/image cache) | Done |
+| `/admin clear-cache` (live bot pack/car/eligibility/image cache) | Done |
 | `pack_size` max 50 (app + DB CHECK) + default-pack delete trigger (`007`) | Done |
 | `/open-pack` reveal sessions keyed by message id | Done |
 | Pack create mid-failure rollback (`import-packs`) | Done |
@@ -395,7 +395,7 @@ Phases 6+ (economy, upgrades, live races, campaign) — future scope beyond M5.
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**, `invalidateCarPool`); **filter / explicit_ids** packs call `findEligible` on each open (not cached). Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**). **`filter` / `explicit_ids` pools** cached via `findEligible` keyed by eligibility hash (**60s TTL**); both car-pool styles clear on `invalidateCarPool` / `/admin clear-cache`. Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision

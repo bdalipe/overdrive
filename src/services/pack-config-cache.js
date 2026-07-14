@@ -70,6 +70,20 @@ function createPackConfigCache({ ttlMs = DEFAULT_TTL_MS } = {}) {
         inflight.delete(key);
     }
 
+    function invalidatePrefix(prefix) {
+        for (const key of [...entries.keys()]) {
+            if (key.startsWith(prefix)) {
+                entries.delete(key);
+            }
+        }
+
+        for (const key of [...inflight.keys()]) {
+            if (key.startsWith(prefix)) {
+                inflight.delete(key);
+            }
+        }
+    }
+
     function invalidatePack(packId) {
         invalidate(`pack:${packId}`);
         invalidate(`pack:default`);
@@ -86,6 +100,7 @@ function createPackConfigCache({ ttlMs = DEFAULT_TTL_MS } = {}) {
         set,
         getOrLoad,
         invalidate,
+        invalidatePrefix,
         invalidatePack,
         clear,
         ttlMs,

@@ -6,6 +6,50 @@ const { assertValidPackSize } = require('../models/pack');
 const logger = require('../shared/logger');
 
 const CAR_POOL_CACHE_KEY = 'cars:listAll';
+const ELIGIBLE_CACHE_PREFIX = 'eligible:';
+
+/**
+ * Stable JSON for cache keys (sorted object keys; arrays keep order except explicit id sort).
+ * @param {unknown} value
+ * @returns {string}
+ */
+function stableStringify(value) {
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value);
+    }
+
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+}
+
+/**
+ * Cache key for filter / explicit_ids eligibility pools (shared across packs with same rule).
+ * @param {{ rule_type: string, filter_json?: object|null, explicit_car_ids?: number[]|null }} eligibility
+ * @returns {string}
+ */
+function eligibilityCacheKey(eligibility) {
+    if (!eligibility || eligibility.rule_type === 'all_cars') {
+        return CAR_POOL_CACHE_KEY;
+    }
+
+    if (eligibility.rule_type === 'explicit_ids') {
+        const ids = [...(eligibility.explicit_car_ids ?? [])]
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id))
+            .sort((a, b) => a - b);
+        return `${ELIGIBLE_CACHE_PREFIX}explicit:${ids.join(',')}`;
+    }
+
+    if (eligibility.rule_type === 'filter') {
+        return `${ELIGIBLE_CACHE_PREFIX}filter:${stableStringify(eligibility.filter_json ?? {})}`;
+    }
+
+    return `${ELIGIBLE_CACHE_PREFIX}unknown:${String(eligibility.rule_type)}`;
+}
 
 function randomPick(array) {
     if (!array.length) {
@@ -261,7 +305,13 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             return loadAllCars();
         }
 
-        return cars.findEligible(eligibility);
+        const key = eligibilityCacheKey(eligibility);
+        return cache.getOrLoad(key, () => cars.findEligible(eligibility));
+    }
+
+    function invalidateCarPool() {
+        cache.invalidate(CAR_POOL_CACHE_KEY);
+        cache.invalidatePrefix(ELIGIBLE_CACHE_PREFIX);
     }
 
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
@@ -343,7 +393,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         loadAllCars,
         loadEligibleCars,
         invalidatePackConfig: (id) => cache.invalidatePack(id),
-        invalidateCarPool: () => cache.invalidate(CAR_POOL_CACHE_KEY),
+        invalidateCarPool,
         clearPackConfigCache: () => cache.clear(),
         RESERVED_DEFAULT_PACK_ID,
     };
@@ -352,6 +402,8 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 module.exports = {
     createPackService,
     CAR_POOL_CACHE_KEY,
+    ELIGIBLE_CACHE_PREFIX,
+    eligibilityCacheKey,
     matchesFilter,
     mutationResolvableInPool,
     resolveEligibleCars,
