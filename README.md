@@ -203,7 +203,7 @@ npm start
 | `npm run register-commands` | Push slash command definitions to Discord (uses `BOT_ENV`) |
 | `npm run dev:register` | Register commands, then start dev watch mode |
 | `npm run import-cars` | Apply car catalog JSON drops to Supabase; update manifest; log `config_change_events`; invalidate car pool + refresh hint |
-| `npm run import-packs` | Create or patch packs (rates, size, eligibility, mutations); update manifest; log audit; pack-config invalidate + refresh hint |
+| `npm run import-packs` | Create or patch packs (rates, size, eligibility, mutations); failed creates roll back; update manifest only on full drop success; pack-config invalidate + refresh hint |
 | `npm run delete-cars` | Delete cars by id (`-- --ids 123456,234567`); log audit; invalidate car pool (script process) + refresh hint |
 | `npm run delete-packs` | Delete non-default packs by slug (`-- --slugs test-pack`); log audit; pack-config refresh hint |
 | `npm run clear-stubs` | Delete sparse stub cars (`make`/`model` null); log audit; car-pool refresh hint |

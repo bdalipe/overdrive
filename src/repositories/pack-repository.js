@@ -337,6 +337,43 @@ function createPackRepository(supabase) {
         return data;
     }
 
+    /**
+     * Delete a pack created during a failed import create (CASCADE children).
+     * Clears is_default first when needed so the DB delete trigger allows removal.
+     * Do not use for normal maintainer deletes of the seeded default pack.
+     */
+    async function deletePackForRollback(packId) {
+        const existing = await findById(packId);
+
+        if (!existing) {
+            return null;
+        }
+
+        if (existing.is_default) {
+            const { error: clearError } = await supabase
+                .from('pack_definitions')
+                .update({ is_default: false })
+                .eq('id', packId);
+
+            if (clearError) {
+                throw wrapRepositoryError('packs.deletePackForRollback.clearDefault', clearError);
+            }
+        }
+
+        const { data, error } = await supabase
+            .from('pack_definitions')
+            .delete()
+            .eq('id', packId)
+            .select()
+            .maybeSingle();
+
+        if (error) {
+            throw wrapRepositoryError('packs.deletePackForRollback', error);
+        }
+
+        return data;
+    }
+
     async function deleteBySlug(slug) {
         const existing = await findBySlug(slug);
 
@@ -364,6 +401,7 @@ function createPackRepository(supabase) {
         updateDefinition,
         listActive,
         deleteById,
+        deletePackForRollback,
         deleteBySlug,
     };
 }

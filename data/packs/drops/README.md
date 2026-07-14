@@ -143,7 +143,7 @@ Each mutation entry:
 
 ## Manifest
 
-`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`).
+`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. **Patches** that fail mid-write are not auto-reverted (re-run or fix manually).
 
 ## Audit log
 
