@@ -76,7 +76,7 @@ Each file is a JSON object:
 | `slug` | **Yes** | Unique key (e.g. `default`, `classic-jdm`) |
 | `name` | **Yes** | Display name |
 | `is_default` | No | Default `false`. Only one default pack allowed |
-| `pack_size` | No | Cards per open; default `5`. Must be ≥ number of `chance_percent: 100` mutations after the drop |
+| `pack_size` | No | Cards per open; default `5`; **1–50** for now (DB CHECK + `import-packs` / open). Cap may rise when multi-embed pack opens land. Must be ≥ number of `chance_percent: 100` mutations after the drop |
 | `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
 | `description` | No | Optional text |
 | `created_at` | — | DB-managed; do not set in drops |
@@ -143,7 +143,7 @@ Each mutation entry:
 
 ## Manifest
 
-`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`).
+`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. **Patches** that fail mid-write are not auto-reverted (re-run or fix manually).
 
 ## Audit log
 

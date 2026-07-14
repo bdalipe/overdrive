@@ -1,6 +1,25 @@
 const VALID_ELIGIBILITY_RULE_TYPES = new Set(['all_cars', 'filter', 'explicit_ids']);
 const VALID_MUTATION_TYPES = new Set(['car', 'filter']);
 
+/** Cards per open: DB CHECK + memory/summary guard (must match migration 007). Raise later with multi-embed opens. */
+const MAX_PACK_SIZE = 50;
+
+/**
+ * @param {unknown} packSize
+ * @returns {number} Validated integer in 1..MAX_PACK_SIZE
+ */
+function assertValidPackSize(packSize) {
+    const size = Number(packSize);
+
+    if (!Number.isInteger(size) || size < 1 || size > MAX_PACK_SIZE) {
+        throw new Error(
+            `Invalid pack_size: ${packSize}. Must be an integer from 1 to ${MAX_PACK_SIZE}.`,
+        );
+    }
+
+    return size;
+}
+
 function normalizeEligibilityInput(input) {
     if (!input || typeof input !== 'object') {
         throw new Error('eligibility must be an object');
@@ -105,11 +124,7 @@ function normalizePackDefinitionInput(input) {
         throw new Error('Pack drop requires slug and name');
     }
 
-    const packSize = input.pack_size ?? 5;
-
-    if (!Number.isInteger(packSize) || packSize < 1) {
-        throw new Error(`Invalid pack_size: ${input.pack_size}`);
-    }
+    const packSize = assertValidPackSize(input.pack_size ?? 5);
 
     return {
         id: input.id ?? undefined,
@@ -139,8 +154,10 @@ function collectDropRatePatch(dropRates) {
 }
 
 module.exports = {
+    MAX_PACK_SIZE,
     VALID_ELIGIBILITY_RULE_TYPES,
     VALID_MUTATION_TYPES,
+    assertValidPackSize,
     normalizeEligibilityInput,
     normalizeMutationInput,
     normalizePackDefinitionInput,

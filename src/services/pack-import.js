@@ -1,5 +1,6 @@
 const { generateSerialId } = require('../shared/generate-serial-id');
 const {
+    assertValidPackSize,
     collectDropRatePatch,
     normalizeEligibilityInput,
     normalizeMutationInput,
@@ -10,6 +11,7 @@ const {
     logConfigChange,
 } = require('./config-change-events');
 const { mutationResolvableInPool } = require('./pack-service');
+const logger = require('../shared/logger');
 
 async function snapshotPack(packRepository, packId) {
     const [pack, dropRates, eligibility, mutations] = await Promise.all([
@@ -106,19 +108,14 @@ function assertGuaranteeCountWithinPackSize(mutations, packSize, packSlug) {
 
 function resolveEffectivePackSize(entry, existing, isCreate) {
     if (entry.pack_size != null) {
-        const packSize = Number(entry.pack_size);
-        if (!Number.isInteger(packSize) || packSize < 1) {
-            throw new Error(`Invalid pack_size: ${entry.pack_size}`);
-        }
-
-        return packSize;
+        return assertValidPackSize(entry.pack_size);
     }
 
     if (isCreate) {
         return 5;
     }
 
-    return existing.pack_size;
+    return assertValidPackSize(existing.pack_size);
 }
 
 async function planMutationsAfterDrop(packRepository, packId, mutationsInput, { isCreate }) {
@@ -169,6 +166,25 @@ async function applyMutations(packRepository, packId, mutationsInput) {
     for (const entry of toAdd) {
         const mutation = normalizeMutationInput(entry);
         await packRepository.addMutation(packId, mutation);
+    }
+}
+
+/**
+ * Remove a pack row created mid-import after a later create step failed (CASCADE children).
+ */
+async function rollbackCreatedPack(packRepository, packId, context = {}) {
+    try {
+        await packRepository.deletePackForRollback(packId);
+        logger.warn('pack_create_rolled_back', {
+            packId,
+            ...context,
+        });
+    } catch (rollbackError) {
+        logger.error('pack_create_rollback_failed', {
+            packId,
+            ...context,
+            error: rollbackError.message,
+        });
     }
 }
 
@@ -235,17 +251,6 @@ async function applyPackEntry({
 
     if (isCreate) {
         const definition = normalizePackDefinitionInput(entry);
-        const packId = await assignPackId(packRepository, definition.id ?? null);
-        pack = await packRepository.createDefinition({
-            id: packId,
-            slug: definition.slug,
-            name: definition.name,
-            is_default: definition.is_default,
-            pack_size: definition.pack_size,
-            is_active: definition.is_active,
-            description: definition.description,
-        });
-
         const ratePatch = collectDropRatePatch(entry.drop_rates);
 
         if (!ratePatch) {
@@ -253,11 +258,37 @@ async function applyPackEntry({
         }
 
         const weights = await dropRateService.buildWeightsForCreate(ratePatch);
-        await packRepository.setDropRates(pack.id, weights);
+        const packId = await assignPackId(packRepository, definition.id ?? null);
+        let createdPackId = null;
 
-        const eligibility = effectiveEligibility ?? defaultEligibility();
-        await packRepository.setEligibility(pack.id, eligibility);
-        await applyMutations(packRepository, pack.id, entry.mutations);
+        try {
+            pack = await packRepository.createDefinition({
+                id: packId,
+                slug: definition.slug,
+                name: definition.name,
+                is_default: definition.is_default,
+                pack_size: definition.pack_size,
+                is_active: definition.is_active,
+                description: definition.description,
+            });
+            createdPackId = pack.id;
+
+            await packRepository.setDropRates(pack.id, weights);
+
+            const eligibility = effectiveEligibility ?? defaultEligibility();
+            await packRepository.setEligibility(pack.id, eligibility);
+            await applyMutations(packRepository, pack.id, entry.mutations);
+        } catch (error) {
+            if (createdPackId != null) {
+                await rollbackCreatedPack(packRepository, createdPackId, {
+                    packSlug: definition.slug,
+                    filename,
+                    reason: error.message,
+                });
+            }
+
+            throw error;
+        }
     } else {
         pack = existing;
 
@@ -268,11 +299,7 @@ async function applyPackEntry({
         }
 
         if (entry.pack_size != null) {
-            const packSize = Number(entry.pack_size);
-            if (!Number.isInteger(packSize) || packSize < 1) {
-                throw new Error(`Invalid pack_size: ${entry.pack_size}`);
-            }
-            updates.pack_size = packSize;
+            updates.pack_size = assertValidPackSize(entry.pack_size);
         }
 
         if (entry.is_active != null) {
@@ -340,19 +367,36 @@ async function applyPackDrop({
     }
 
     const results = [];
+    const createdPackIds = [];
 
-    for (const entry of packs) {
-        const result = await applyPackEntry({
-            packRepository,
-            carRepository,
-            dropRateService,
-            configChangeRepository,
-            actorId,
-            dropId: drop.dropId ?? filename,
-            filename,
-            entry,
-        });
-        results.push(result);
+    try {
+        for (const entry of packs) {
+            const result = await applyPackEntry({
+                packRepository,
+                carRepository,
+                dropRateService,
+                configChangeRepository,
+                actorId,
+                dropId: drop.dropId ?? filename,
+                filename,
+                entry,
+            });
+            results.push(result);
+
+            if (result.action === 'create') {
+                createdPackIds.push(result.packId);
+            }
+        }
+    } catch (error) {
+        for (const packId of [...createdPackIds].reverse()) {
+            await rollbackCreatedPack(packRepository, packId, {
+                filename,
+                reason: 'drop_aborted_after_prior_create',
+                cause: error.message,
+            });
+        }
+
+        throw error;
     }
 
     return {
@@ -367,4 +411,5 @@ module.exports = {
     snapshotPack,
     assertBonusMutationsWithinEligibility,
     assertGuaranteeCountWithinPackSize,
+    rollbackCreatedPack,
 };

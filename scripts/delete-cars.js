@@ -8,6 +8,7 @@ const {
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 
 function parseIds(argv) {
     const flagIndex = argv.indexOf('--ids');
@@ -60,6 +61,7 @@ async function main() {
     const deletedIds = deleted.map((row) => row.id);
 
     services.packs.invalidateCarPool();
+    logBotCacheRefreshHint(logger, { scope: 'delete-cars', affected: 'car-pool' });
 
     await logConfigChange(
         repositories.configChanges,
