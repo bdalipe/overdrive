@@ -114,7 +114,7 @@ Each mutation entry:
 | `mutation_type` | `car` \| `filter` |
 | `target_car_id` | Required for `car` |
 | `filter_json` | Required for `filter` |
-| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses) |
+| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses). On each normal draw, **every** eligible bonus rolls independently; if more than one succeeds, one winner is chosen at random for that slot |
 | `rarity_gate` | Optional `1`–`6`; bonus only when that rarity is drawn |
 | `id` | DB serial; omit on add (use `remove_ids` to delete) |
 | `created_at` | DB-managed; do not set |

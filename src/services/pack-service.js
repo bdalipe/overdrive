@@ -217,7 +217,13 @@ async function applyGuaranteeMutations(mutations, cars, logContext) {
     return cards;
 }
 
-function tryBonusMutation(mutations, drawnRarity, eligibleCars) {
+/**
+ * Every eligible bonus (`chance_percent` < 100) rolls independently for this draw.
+ * If several succeed (chance + rarity gate + pick), one is chosen uniformly at random.
+ */
+function rollBonusMutations(mutations, drawnRarity, eligibleCars) {
+    const successes = [];
+
     for (const mutation of mutations) {
         const chance = Number(mutation.chance_percent);
         if (chance >= 100 || chance <= 0) {
@@ -228,15 +234,17 @@ function tryBonusMutation(mutations, drawnRarity, eligibleCars) {
             continue;
         }
 
-        if (randomInt(0, 100) < chance) {
-            const car = pickFromMutation(mutation, eligibleCars);
-            if (car) {
-                return car;
-            }
+        if (randomInt(0, 100) >= chance) {
+            continue;
+        }
+
+        const car = pickFromMutation(mutation, eligibleCars);
+        if (car) {
+            successes.push(car);
         }
     }
 
-    return null;
+    return randomPick(successes);
 }
 
 function sortCardsByRarity(cards) {
@@ -339,7 +347,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
                 continue;
             }
 
-            const bonusCar = tryBonusMutation(mutations, rarity, eligibleCars);
+            const bonusCar = rollBonusMutations(mutations, rarity, eligibleCars);
             if (bonusCar) {
                 cards.push(bonusCar);
                 continue;
