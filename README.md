@@ -368,7 +368,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 
 ### Catalog & pack-import follow-ups (post–Phase 1)
 - [x] True partial-patch car imports (merge on existing id; `replace: true` for full-row wipe)
-- [ ] Faster batch serial-id allocation for large catalog / stub drops
+- [x] Faster batch serial-id allocation for large catalog / stub drops (`generateSerialIds` + `cars.listIds`)
 - [x] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
 - [x] Pack patch can clear `description` to null when the key is present
 - [x] Car-delete preflight for packs that reference mutations / explicit ids (refuse unless `--force`)
@@ -414,7 +414,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**). **`filter` / `explicit_ids` pools** cached via `findEligible` keyed by eligibility hash (**60s TTL**); both car-pool styles clear on `invalidateCarPool` / `/admin clear-cache`. Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers. Pack open / import / repository modules are already the longest files; when shared eligibility filters or the next pack-import hardening lands, prefer extracting a shared filter helper and splitting create/patch/mutate (and repository facets) rather than growing those files further
 - **No dev-generated car content**
-- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
+- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); collision checks via DB `exists` (packs) or an in-memory taken set after `cars.listIds` for catalog batch allocate (`generateSerialIds`)
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phase 1 interim):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 2 compose and future commands.
 - **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise). On each normal draw slot, every eligible bonus rolls independently; if several succeed, one is chosen at random for that slot

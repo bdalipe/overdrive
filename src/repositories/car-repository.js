@@ -110,6 +110,19 @@ function createCarRepository(supabase) {
     }
 
     /**
+     * All car ids (paged). Used for batch serial allocation.
+     * @returns {Promise<number[]>}
+     */
+    async function listIds() {
+        const rows = await fetchAllRows(
+            () => supabase.from(TABLE).select('id').order('id', { ascending: true }),
+            'cars.listIds',
+        );
+
+        return rows.map((row) => row.id);
+    }
+
+    /**
      * Resolve cars for a pack_eligibility row without loading the full catalog when possible.
      * Filter semantics match pack-service `matchesFilter`.
      * When `yearMin` / `yearMax` is set, cars with null `model_year` are excluded.
@@ -216,6 +229,7 @@ function createCarRepository(supabase) {
         exists,
         upsertMany,
         listAll,
+        listIds,
         findEligible,
         deleteByIds,
         deleteStubs,

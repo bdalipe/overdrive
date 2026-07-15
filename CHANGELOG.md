@@ -28,11 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Delete scripts: `deleted_but_unaudited` error path when audit fails after a successful delete
 - `delete-cars` refuses cars referenced by pack mutations / `explicit_car_ids` unless `--force`
 - Car catalog import: merge patches for existing ids (omitted fields kept); `replace: true` for full-row wipe; `mergeCarForDb` + `cars.findByIds`
+- Batch serial-id allocation: `generateSerialIds` / `claimSerialId` against a taken set; `cars.listIds`; used by `import-cars` and `seed-stubs`
 
 ### Planned (post-hygiene)
 
 **Catalog / pack-import follow-up**
-- Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 - Batch pack-mutation inserts for large `mutations.add` arrays
 
 **Phase 2 — card composition / reveal / filters**

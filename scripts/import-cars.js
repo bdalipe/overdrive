@@ -8,7 +8,7 @@ const {
     logConfigChange,
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
-const { generateSerialId } = require('../src/shared/generate-serial-id');
+const { generateSerialIds } = require('../src/shared/generate-serial-id');
 const { normalizeCarForDb, mergeCarForDb } = require('../src/models/car');
 const logger = require('../src/shared/logger');
 const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
@@ -19,22 +19,12 @@ const {
     readDropFile,
 } = require('./lib/catalog');
 
-async function assignCarId(carRepo, explicitId) {
-    if (explicitId != null) {
-        return explicitId;
-    }
-
-    return generateSerialId({
-        exists: (id) => carRepo.exists(id),
-    });
-}
-
 /**
  * @param {object} entry
  * @param {Map<number, object>} existingById
- * @param {object} carRepo
+ * @param {number|null} assignedId - pre-allocated id when entry has no explicit id
  */
-async function buildCarRow(entry, existingById, carRepo) {
+function buildCarRow(entry, existingById, assignedId) {
     const replace = entry.replace === true;
     const explicitId = entry.id ?? null;
     const existing = explicitId != null ? existingById.get(explicitId) ?? null : null;
@@ -44,7 +34,11 @@ async function buildCarRow(entry, existingById, carRepo) {
     }
 
     const normalized = normalizeCarForDb(entry);
-    normalized.id = await assignCarId(carRepo, explicitId);
+    normalized.id = explicitId != null ? explicitId : assignedId;
+
+    if (normalized.id == null) {
+        throw new Error('buildCarRow: missing id for create/replace');
+    }
 
     return {
         row: normalized,
@@ -52,7 +46,7 @@ async function buildCarRow(entry, existingById, carRepo) {
     };
 }
 
-async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
+async function importDrop(carRepo, configChangeRepo, actorId, drop, filename, taken) {
     const cars = drop.cars ?? [];
 
     if (!Array.isArray(cars) || cars.length === 0) {
@@ -65,11 +59,20 @@ async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
         .map((id) => Number(id));
     const existingById = await carRepo.findByIds(explicitIds);
 
+    for (const id of explicitIds) {
+        taken.add(id);
+    }
+
+    const autoCount = cars.filter((entry) => entry.id == null).length;
+    const autoIds = generateSerialIds(autoCount, { taken });
+    let autoIndex = 0;
+
     const rows = [];
     const actions = { create: 0, patch: 0, replace: 0 };
 
     for (const entry of cars) {
-        const { row, action } = await buildCarRow(entry, existingById, carRepo);
+        const assignedId = entry.id == null ? autoIds[autoIndex++] : null;
+        const { row, action } = buildCarRow(entry, existingById, assignedId);
         rows.push(row);
         actions[action] += 1;
     }
@@ -111,6 +114,7 @@ async function main() {
         return;
     }
 
+    const taken = new Set(await repositories.cars.listIds());
     const appliedNow = [];
 
     for (const filename of pending) {
@@ -121,6 +125,7 @@ async function main() {
             actorId,
             drop,
             filename,
+            taken,
         );
 
         manifest.applied.push(filename);
