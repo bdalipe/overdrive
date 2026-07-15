@@ -9,7 +9,7 @@ const {
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const { generateSerialId } = require('../src/shared/generate-serial-id');
-const { normalizeCarForDb } = require('../src/models/car');
+const { normalizeCarForDb, mergeCarForDb } = require('../src/models/car');
 const logger = require('../src/shared/logger');
 const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 const {
@@ -29,6 +29,29 @@ async function assignCarId(carRepo, explicitId) {
     });
 }
 
+/**
+ * @param {object} entry
+ * @param {Map<number, object>} existingById
+ * @param {object} carRepo
+ */
+async function buildCarRow(entry, existingById, carRepo) {
+    const replace = entry.replace === true;
+    const explicitId = entry.id ?? null;
+    const existing = explicitId != null ? existingById.get(explicitId) ?? null : null;
+
+    if (existing && !replace) {
+        return { row: mergeCarForDb(existing, entry), action: 'patch' };
+    }
+
+    const normalized = normalizeCarForDb(entry);
+    normalized.id = await assignCarId(carRepo, explicitId);
+
+    return {
+        row: normalized,
+        action: existing && replace ? 'replace' : 'create',
+    };
+}
+
 async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
     const cars = drop.cars ?? [];
 
@@ -36,12 +59,19 @@ async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
         throw new Error(`Drop ${filename} has no cars array`);
     }
 
+    const explicitIds = cars
+        .map((entry) => entry.id)
+        .filter((id) => id != null)
+        .map((id) => Number(id));
+    const existingById = await carRepo.findByIds(explicitIds);
+
     const rows = [];
+    const actions = { create: 0, patch: 0, replace: 0 };
 
     for (const entry of cars) {
-        const normalized = normalizeCarForDb(entry);
-        normalized.id = await assignCarId(carRepo, entry.id ?? null);
-        rows.push(normalized);
+        const { row, action } = await buildCarRow(entry, existingById, carRepo);
+        rows.push(row);
+        actions[action] += 1;
     }
 
     await carRepo.upsertMany(rows);
@@ -62,6 +92,7 @@ async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
         dropId: drop.dropId ?? filename,
         count: rows.length,
         ids: carIds,
+        actions,
     };
 }
 
@@ -99,6 +130,7 @@ async function main() {
             filename,
             dropId: result.dropId,
             count: result.count,
+            actions: result.actions,
         });
     }
 

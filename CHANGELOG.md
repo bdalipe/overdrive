@@ -27,11 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pack create: roll back the new pack if required audit fails; `rollbackCreatedPack` throws on rollback delete failure (multi-pack abort still attempts all prior creates)
 - Delete scripts: `deleted_but_unaudited` error path when audit fails after a successful delete
 - `delete-cars` refuses cars referenced by pack mutations / `explicit_car_ids` unless `--force`
+- Car catalog import: merge patches for existing ids (omitted fields kept); `replace: true` for full-row wipe; `mergeCarForDb` + `cars.findByIds`
 
 ### Planned (post-hygiene)
 
 **Catalog / pack-import follow-up**
-- Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
 - Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 - Batch pack-mutation inserts for large `mutations.add` arrays
 
