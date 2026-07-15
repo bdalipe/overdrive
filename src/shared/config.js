@@ -19,6 +19,9 @@ function loadEnv() {
     const supabaseSecretKey =
         process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+    const maintainerDiscordUserId =
+        process.env.MAINTAINER_DISCORD_USER_ID?.trim() || undefined;
+
     return {
         botEnv,
         token,
@@ -26,6 +29,7 @@ function loadEnv() {
         guildId: process.env.DISCORD_GUILD_ID,
         supabaseUrl: process.env.SUPABASE_URL,
         supabaseSecretKey,
+        maintainerDiscordUserId,
     };
 }
 

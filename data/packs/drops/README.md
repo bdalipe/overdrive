@@ -78,7 +78,7 @@ Each file is a JSON object:
 | `is_default` | No | Default `false`. Only one default pack allowed |
 | `pack_size` | No | Cards per open; default `5`; **1–50** for now (DB CHECK + `import-packs` / open). Cap may rise when multi-embed pack opens land. Must be ≥ number of `chance_percent: 100` mutations after the drop |
 | `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
-| `description` | No | Optional text |
+| `description` | No | Optional text. **Patch:** include `"description": null` to clear — **not yet supported** in the repository layer (key is ignored when null); follow-up pending |
 | `created_at` | — | DB-managed; do not set in drops |
 
 ### `pack_drop_rates` (`drop_rates` object)
@@ -94,6 +94,8 @@ Keys `"1"`–`"6"` map to rarity tier weight (percent). **Create:** omitted tier
 | `explicit_car_ids` | Required for `explicit_ids` — array of 6-digit car ids |
 
 **Filter keys** (AND logic): `rarities`, `countries`, `bodyStyles`, `tags`, `yearMin`, `yearMax`.
+
+When `yearMin` and/or `yearMax` is set, cars with a null `model_year` are **excluded** (same rule in SQL `findEligible` and in-memory `matchesFilter`).
 
 **Patch:** omit `eligibility` to leave unchanged. **Create:** omit → `all_cars`.
 
@@ -112,7 +114,7 @@ Each mutation entry:
 | `mutation_type` | `car` \| `filter` |
 | `target_car_id` | Required for `car` |
 | `filter_json` | Required for `filter` |
-| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses) |
+| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses). On each normal draw, **every** eligible bonus rolls independently; if more than one succeeds, one winner is chosen at random for that slot |
 | `rarity_gate` | Optional `1`–`6`; bonus only when that rarity is drawn |
 | `id` | DB serial; omit on add (use `remove_ids` to delete) |
 | `created_at` | DB-managed; do not set |
@@ -145,10 +147,12 @@ Each mutation entry:
 
 `data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. **Patches** that fail mid-write are not auto-reverted (re-run or fix manually).
 
+**Known follow-up:** if a **create** finishes packing writes but the required audit insert then fails, the pack row can remain and block the slug on retry — delete the orphan pack (or wait for create+audit rollback) before re-running.
+
 ## Audit log
 
-Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
+Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error (pack writes for that entry may already have applied). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
-**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Re-run `npm run register-commands` afterward.
+**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Delete also fails closed if audit insert fails — the pack may already be gone with no audit row; fix audit write access and note the gap, then re-run `npm run register-commands` afterward.
 
 Do not commit proprietary pack configs to a public repo unless intended.

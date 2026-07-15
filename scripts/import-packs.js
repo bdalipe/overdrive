@@ -45,7 +45,9 @@ async function main() {
         });
 
         for (const packResult of result.packs) {
-            services.packs.invalidatePackConfig(packResult.packId);
+            services.packs.invalidatePackConfig(packResult.packId, {
+                isDefault: packResult.isDefault,
+            });
         }
 
         manifest.applied.push(filename);

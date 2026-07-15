@@ -1,8 +1,9 @@
 const { wrapRepositoryError } = require('./errors');
-const { assertValidPackSize } = require('../models/pack');
-
-const VALID_ELIGIBILITY_RULE_TYPES = new Set(['all_cars', 'filter', 'explicit_ids']);
-const VALID_MUTATION_TYPES = new Set(['car', 'filter']);
+const {
+    assertValidPackSize,
+    VALID_ELIGIBILITY_RULE_TYPES,
+    VALID_MUTATION_TYPES,
+} = require('../models/pack');
 
 function createPackRepository(supabase) {
     async function findById(packId) {
@@ -111,23 +112,6 @@ function createPackRepository(supabase) {
         }
 
         return data ?? [];
-    }
-
-    async function updatePackSize(packId, packSize) {
-        const validatedSize = assertValidPackSize(packSize);
-
-        const { data, error } = await supabase
-            .from('pack_definitions')
-            .update({ pack_size: validatedSize })
-            .eq('id', packId)
-            .select()
-            .single();
-
-        if (error) {
-            throw wrapRepositoryError('packs.updatePackSize', error);
-        }
-
-        return data;
     }
 
     async function setEligibility(packId, { rule_type, filter_json = null, explicit_car_ids = null }) {
@@ -392,7 +376,6 @@ function createPackRepository(supabase) {
         getEligibility,
         getMutations,
         setDropRates,
-        updatePackSize,
         setEligibility,
         addMutation,
         deleteMutations,

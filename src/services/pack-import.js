@@ -348,6 +348,7 @@ async function applyPackEntry({
         packId: pack.id,
         packSlug: pack.slug,
         action: isCreate ? 'create' : 'patch',
+        isDefault: Boolean(pack.is_default),
     };
 }
 

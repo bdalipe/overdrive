@@ -70,7 +70,9 @@ async function main() {
             continue;
         }
 
-        services.packs.invalidatePackConfig(existing.id);
+        services.packs.invalidatePackConfig(existing.id, {
+            isDefault: Boolean(existing.is_default),
+        });
 
         await logConfigChange(
             repositories.configChanges,

@@ -6,6 +6,50 @@ const { assertValidPackSize } = require('../models/pack');
 const logger = require('../shared/logger');
 
 const CAR_POOL_CACHE_KEY = 'cars:listAll';
+const ELIGIBLE_CACHE_PREFIX = 'eligible:';
+
+/**
+ * Stable JSON for cache keys (sorted object keys; arrays keep order except explicit id sort).
+ * @param {unknown} value
+ * @returns {string}
+ */
+function stableStringify(value) {
+    if (value === null || typeof value !== 'object') {
+        return JSON.stringify(value);
+    }
+
+    if (Array.isArray(value)) {
+        return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+}
+
+/**
+ * Cache key for filter / explicit_ids eligibility pools (shared across packs with same rule).
+ * @param {{ rule_type: string, filter_json?: object|null, explicit_car_ids?: number[]|null }} eligibility
+ * @returns {string}
+ */
+function eligibilityCacheKey(eligibility) {
+    if (!eligibility || eligibility.rule_type === 'all_cars') {
+        return CAR_POOL_CACHE_KEY;
+    }
+
+    if (eligibility.rule_type === 'explicit_ids') {
+        const ids = [...(eligibility.explicit_car_ids ?? [])]
+            .map((id) => Number(id))
+            .filter((id) => Number.isInteger(id))
+            .sort((a, b) => a - b);
+        return `${ELIGIBLE_CACHE_PREFIX}explicit:${ids.join(',')}`;
+    }
+
+    if (eligibility.rule_type === 'filter') {
+        return `${ELIGIBLE_CACHE_PREFIX}filter:${stableStringify(eligibility.filter_json ?? {})}`;
+    }
+
+    return `${ELIGIBLE_CACHE_PREFIX}unknown:${String(eligibility.rule_type)}`;
+}
 
 function randomPick(array) {
     if (!array.length) {
@@ -44,32 +88,21 @@ function matchesFilter(car, filter) {
         }
     }
 
-    if (filter.yearMin != null && car.model_year != null && car.model_year < filter.yearMin) {
-        return false;
-    }
+    if (filter.yearMin != null || filter.yearMax != null) {
+        if (car.model_year == null) {
+            return false;
+        }
 
-    if (filter.yearMax != null && car.model_year != null && car.model_year > filter.yearMax) {
-        return false;
+        if (filter.yearMin != null && car.model_year < filter.yearMin) {
+            return false;
+        }
+
+        if (filter.yearMax != null && car.model_year > filter.yearMax) {
+            return false;
+        }
     }
 
     return true;
-}
-
-function resolveEligibleCars(allCars, eligibility) {
-    if (!eligibility || eligibility.rule_type === 'all_cars') {
-        return allCars;
-    }
-
-    if (eligibility.rule_type === 'explicit_ids') {
-        const ids = new Set(eligibility.explicit_car_ids ?? []);
-        return allCars.filter((car) => ids.has(car.id));
-    }
-
-    if (eligibility.rule_type === 'filter') {
-        return allCars.filter((car) => matchesFilter(car, eligibility.filter_json));
-    }
-
-    return allCars;
 }
 
 function groupCarsByRarity(cars) {
@@ -184,7 +217,13 @@ async function applyGuaranteeMutations(mutations, cars, logContext) {
     return cards;
 }
 
-function tryBonusMutation(mutations, drawnRarity, eligibleCars) {
+/**
+ * Every eligible bonus (`chance_percent` < 100) rolls independently for this draw.
+ * If several succeed (chance + rarity gate + pick), one is chosen uniformly at random.
+ */
+function rollBonusMutations(mutations, drawnRarity, eligibleCars) {
+    const successes = [];
+
     for (const mutation of mutations) {
         const chance = Number(mutation.chance_percent);
         if (chance >= 100 || chance <= 0) {
@@ -195,15 +234,17 @@ function tryBonusMutation(mutations, drawnRarity, eligibleCars) {
             continue;
         }
 
-        if (randomInt(0, 100) < chance) {
-            const car = pickFromMutation(mutation, eligibleCars);
-            if (car) {
-                return car;
-            }
+        if (randomInt(0, 100) >= chance) {
+            continue;
+        }
+
+        const car = pickFromMutation(mutation, eligibleCars);
+        if (car) {
+            successes.push(car);
         }
     }
 
-    return null;
+    return randomPick(successes);
 }
 
 function sortCardsByRarity(cards) {
@@ -261,7 +302,13 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
             return loadAllCars();
         }
 
-        return cars.findEligible(eligibility);
+        const key = eligibilityCacheKey(eligibility);
+        return cache.getOrLoad(key, () => cars.findEligible(eligibility));
+    }
+
+    function invalidateCarPool() {
+        cache.invalidate(CAR_POOL_CACHE_KEY);
+        cache.invalidatePrefix(ELIGIBLE_CACHE_PREFIX);
     }
 
     async function generatePack({ userId, packId = null, packSize: packSizeOverride = null }) {
@@ -300,7 +347,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
                 continue;
             }
 
-            const bonusCar = tryBonusMutation(mutations, rarity, eligibleCars);
+            const bonusCar = rollBonusMutations(mutations, rarity, eligibleCars);
             if (bonusCar) {
                 cards.push(bonusCar);
                 continue;
@@ -342,19 +389,22 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         loadPackConfig,
         loadAllCars,
         loadEligibleCars,
-        invalidatePackConfig: (id) => cache.invalidatePack(id),
-        invalidateCarPool: () => cache.invalidate(CAR_POOL_CACHE_KEY),
+        invalidatePackConfig: (id, options = {}) => {
+            const isDefault =
+                options.isDefault === true || Number(id) === RESERVED_DEFAULT_PACK_ID;
+            cache.invalidatePack(id, { isDefault });
+        },
+        invalidateCarPool,
         clearPackConfigCache: () => cache.clear(),
-        RESERVED_DEFAULT_PACK_ID,
     };
 }
 
 module.exports = {
     createPackService,
     CAR_POOL_CACHE_KEY,
+    ELIGIBLE_CACHE_PREFIX,
+    eligibilityCacheKey,
     matchesFilter,
     mutationResolvableInPool,
-    resolveEligibleCars,
     sortCardsByRarity,
-    RESERVED_DEFAULT_PACK_ID,
 };

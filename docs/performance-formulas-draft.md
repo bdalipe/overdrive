@@ -1,6 +1,6 @@
 # Performance formulas (draft — work in progress)
 
-> **Status:** Early draft for Phase 4. Do not implement locked balance from this document until formulas are reviewed and `formula_version` is set.
+> **Status:** Early draft for Phase 3. Do not implement locked balance from this document until formulas are reviewed and `formula_version` is set.
 
 ## Scope
 

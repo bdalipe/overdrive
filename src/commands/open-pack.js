@@ -135,7 +135,9 @@ function buildPackChoices(activePacks) {
     const packs = sortActivePacks(activePacks).slice(0, MAX_PACK_CHOICES);
 
     if (packs.length === 0) {
-        return [{ name: 'Standard Pack', value: 'default' }];
+        throw new Error(
+            'No active packs available for /open-pack choices. Activate or import a pack, then re-run register-commands.',
+        );
     }
 
     const usedValues = new Set();

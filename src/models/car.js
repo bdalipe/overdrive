@@ -22,7 +22,7 @@ const NUMERIC_STATS = {
     },
     weight: {
         statusKey: 'weight_status',
-        // Imperial default (lbs). Future: respect imperial/metric setting (CLN-018).
+        // Imperial default (lbs). Future: respect imperial/metric user/guild setting (Phase 4 settings).
         formatValue: (value) => `${formatNumber(value)} lbs`,
     },
 };
