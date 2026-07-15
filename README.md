@@ -118,7 +118,7 @@ cp .env.example .env
 | `IMAGE_PROBE_FORCE` | No | Set `true` to probe Supabase Storage URLs instead of trusting public object paths |
 | `IMAGE_PROBE_TIMEOUT_MS` | No | Image reachability probe timeout (default `2000`) |
 | `IMAGE_PROBE_CACHE_TTL_MS` | No | Probe result cache TTL (default `600000` / 10 min) |
-| `MAINTAINER_DISCORD_USER_ID` | No | Discord snowflake attributed on `config_change_events` for `import-cars` / `import-packs` |
+| `MAINTAINER_DISCORD_USER_ID` | No | Discord snowflake attributed on `config_change_events` for `import-cars` / `import-packs` (exposed as `loadEnv().maintainerDiscordUserId`) |
 
 Optional: use `.env.dev` / `.env.prod` for separate files per environment. `loadEnv()` reads `.env.{BOT_ENV}` first, then `.env`. See [`.env.example`](.env.example) for the full template.
 

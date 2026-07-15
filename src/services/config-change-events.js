@@ -3,9 +3,7 @@ const logger = require('../shared/logger');
 const MAINTAINER_SYSTEM_ACTOR = 'system:maintainer';
 
 function resolveMaintainerActorId(config = {}) {
-    return config.maintainerDiscordUserId
-        ?? process.env.MAINTAINER_DISCORD_USER_ID
-        ?? MAINTAINER_SYSTEM_ACTOR;
+    return config.maintainerDiscordUserId || MAINTAINER_SYSTEM_ACTOR;
 }
 
 function buildCarCatalogImportEvent({
