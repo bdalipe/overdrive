@@ -149,8 +149,8 @@ Each mutation entry:
 
 ## Audit log
 
-Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
+Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error (pack writes for that entry may already have applied). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
-**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Re-run `npm run register-commands` afterward.
+**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Delete also fails closed if audit insert fails. Re-run `npm run register-commands` afterward.
 
 Do not commit proprietary pack configs to a public repo unless intended.

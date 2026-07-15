@@ -426,7 +426,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 3. Run `npm run import-cars` or `npm run import-packs`.
 4. Apply migration `007_pack_integrity_guards.sql` (and prior migrations through `006`) before first import on a fresh DB.
 
-Car and pack imports append audit rows to `config_change_events` (mandatory; failures are logged, import still completes).
+Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). Catalog writes that already succeeded are not auto-reverted; fix the DB/audit issue and re-run as needed.
 
 Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
@@ -438,7 +438,7 @@ npm run clear-stubs                 # make/model both null (seed-stubs rows)
 npm run delete-packs -- --slugs test-pack
 ```
 
-Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes append `config_change_events` rows.
+Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes require a successful `config_change_events` insert (same fail-closed rule as imports).
 
 ---
 

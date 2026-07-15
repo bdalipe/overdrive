@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pruned unused APIs: `resolveEligibleCars`; `packs.updatePackSize`; `cars.upsert` / `findByRarity` / `deleteById`; `stats.insertEvent`; `rollRarityForPack`; `buildCardEmbedFields`; pack-service re-exports of `RESERVED_DEFAULT_PACK_ID`
 - Year-bounded pack filters exclude cars with null `model_year` (`matchesFilter` + `findEligible`)
 - Pack bonus mutations (`chance_percent` &lt; 100) each roll independently per draw; multiple successes pick one winner at random for that slot
+- Catalog import/delete audit (`config_change_events`) fails closed if the audit insert fails; `/open-pack` `stats_events` inserts remain best-effort
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
 
 ### Planned (Phase 2+)

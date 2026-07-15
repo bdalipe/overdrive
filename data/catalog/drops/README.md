@@ -80,8 +80,8 @@ Each file is a JSON object:
 
 ## Audit log
 
-Every successful import appends a row to `config_change_events` (`source: import-cars`, `entity_type: car`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
+Every successful import appends a row to `config_change_events` (`source: import-cars`, `entity_type: car`). If the audit insert fails, `import-cars` exits with an error (catalog upsert may already have applied). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
-**Deletes:** `npm run delete-cars -- --ids …` or `npm run clear-stubs` (rows with null make and model).
+**Deletes:** `npm run delete-cars -- --ids …` or `npm run clear-stubs` (rows with null make and model). Delete scripts also fail closed if audit insert fails.
 
 Do not commit proprietary catalog drops to a public repo unless intended.

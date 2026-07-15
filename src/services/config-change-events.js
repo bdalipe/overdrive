@@ -93,6 +93,10 @@ function buildPackCatalogDeleteEvent({ actorId, packId, packSlug, before }) {
     };
 }
 
+/**
+ * Persist a config_change_events row. Failure fails the caller (import/delete scripts).
+ * Logs then rethrows so maintainer commands exit non-zero.
+ */
 async function logConfigChange(configChangeRepository, event) {
     try {
         await configChangeRepository.insert(event);
@@ -103,6 +107,7 @@ async function logConfigChange(configChangeRepository, event) {
             action: event.action,
             error: error.message,
         });
+        throw error;
     }
 }
 
