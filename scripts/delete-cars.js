@@ -4,14 +4,15 @@ const { createRepositories } = require('../src/repositories');
 const { createServices } = require('../src/services');
 const {
     buildCarCatalogDeleteEvent,
-    logConfigChange,
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
 const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
+const { logConfigChangeAfterDelete } = require('./lib/audit-after-delete');
 
-function parseIds(argv) {
+function parseArgs(argv) {
     const flagIndex = argv.indexOf('--ids');
+    const force = argv.includes('--force');
 
     if (flagIndex === -1) {
         return null;
@@ -19,8 +20,8 @@ function parseIds(argv) {
 
     const raw = argv[flagIndex + 1];
 
-    if (!raw) {
-        throw new Error('Usage: npm run delete-cars -- --ids 123456,234567');
+    if (!raw || raw.startsWith('--')) {
+        throw new Error('Usage: npm run delete-cars -- --ids 123456,234567 [--force]');
     }
 
     const ids = raw
@@ -41,21 +42,75 @@ function parseIds(argv) {
         throw new Error('Provide at least one car id with --ids');
     }
 
-    return ids;
+    return { ids, force };
+}
+
+function formatPackReferenceBlock(refs) {
+    const lines = [];
+
+    if (refs.mutations.length > 0) {
+        lines.push('pack_mutations (CASCADE deletes these rows):');
+        for (const row of refs.mutations) {
+            lines.push(
+                `  - car ${row.targetCarId} → pack ${row.packSlug} (mutation ${row.mutationId},` +
+                    ` chance ${row.chancePercent}%)`,
+            );
+        }
+    }
+
+    if (refs.explicitEligibility.length > 0) {
+        lines.push('pack_eligibility.explicit_car_ids (no FK; dead ids remain unless pack is patched):');
+        for (const row of refs.explicitEligibility) {
+            lines.push(
+                `  - cars [${row.matchedCarIds.join(', ')}] → pack ${row.packSlug}`,
+            );
+        }
+    }
+
+    return lines.join('\n');
+}
+
+function assertNoPackReferencesOrForced(refs, { force }) {
+    const hasRefs = refs.mutations.length > 0 || refs.explicitEligibility.length > 0;
+
+    if (!hasRefs) {
+        return;
+    }
+
+    const detail = formatPackReferenceBlock(refs);
+
+    if (!force) {
+        throw new Error(
+            'Refusing delete-cars: cars are referenced by pack config.\n' +
+                `${detail}\n` +
+                'Patch packs first, or re-run with --force to delete anyway ' +
+                '(mutations CASCADE; explicit_car_ids keep dead ids until pack patch).',
+        );
+    }
+
+    logger.warn('delete_cars_force_pack_refs', {
+        mutationCount: refs.mutations.length,
+        explicitPackCount: refs.explicitEligibility.length,
+        detail,
+    });
 }
 
 async function main() {
-    const ids = parseIds(process.argv.slice(2));
+    const parsed = parseArgs(process.argv.slice(2));
 
-    if (!ids) {
-        throw new Error('Usage: npm run delete-cars -- --ids 123456,234567');
+    if (!parsed) {
+        throw new Error('Usage: npm run delete-cars -- --ids 123456,234567 [--force]');
     }
 
+    const { ids, force } = parsed;
     const config = loadEnv();
     const supabase = createSupabaseClient(config);
     const repositories = createRepositories(supabase);
     const services = createServices(repositories);
     const actorId = resolveMaintainerActorId(config);
+
+    const refs = await repositories.packs.findCarPackReferences(ids);
+    assertNoPackReferencesOrForced(refs, { force });
 
     const deleted = await repositories.cars.deleteByIds(ids);
     const deletedIds = deleted.map((row) => row.id);
@@ -63,14 +118,20 @@ async function main() {
     services.packs.invalidateCarPool();
     logBotCacheRefreshHint(logger, { scope: 'delete-cars', affected: 'car-pool' });
 
-    await logConfigChange(
+    await logConfigChangeAfterDelete(
         repositories.configChanges,
         buildCarCatalogDeleteEvent({
             actorId,
             source: 'delete-cars',
             carIds: deletedIds,
-            reason: 'delete-by-ids',
+            reason: force ? 'delete-by-ids-force' : 'delete-by-ids',
         }),
+        {
+            summary: `cars ${deletedIds.join(',') || '(none)'}`,
+            entityType: 'car',
+            deletedIds,
+            force,
+        },
     );
 
     logger.info('delete_cars_complete', {
@@ -78,6 +139,7 @@ async function main() {
         requested: ids.length,
         deleted: deletedIds.length,
         deletedIds,
+        force,
     });
 }
 

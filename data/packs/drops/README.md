@@ -151,6 +151,6 @@ Each mutation entry:
 
 Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error. For **creates**, the new pack is rolled back first so the slug is reusable; **patches** may already have applied (not auto-reverted). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
-**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Delete also fails closed if audit insert fails — the pack may already be gone with no audit row; fix audit write access and note the gap, then re-run `npm run register-commands` afterward.
+**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). If audit fails after a successful delete, the script logs `deleted_but_unaudited` and exits non-zero — the pack is already gone; fix audit write access and **do not re-delete** that slug; re-run `npm run register-commands` afterward if choices need updating.
 
 Do not commit proprietary pack configs to a public repo unless intended.

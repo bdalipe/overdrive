@@ -371,8 +371,9 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [ ] Faster batch serial-id allocation for large catalog / stub drops
 - [x] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
 - [x] Pack patch can clear `description` to null when the key is present
-- [ ] Car-delete preflight for packs that reference mutations / explicit ids (CASCADE awareness)
-- [ ] Batch pack-mutation inserts; clearer delete + unaudited recovery messaging
+- [x] Car-delete preflight for packs that reference mutations / explicit ids (refuse unless `--force`)
+- [x] Clearer delete + unaudited recovery messaging (`deleted_but_unaudited`)
+- [ ] Batch pack-mutation inserts for large `mutations.add` arrays
 - [x] Local `[db.seed]` disabled (no `seed.sql` required; use npm catalog scripts)
 
 ### Phase 2 — Modular card composition
@@ -440,7 +441,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 3. Run `npm run import-cars` or `npm run import-packs`.
 4. Apply migration `007_pack_integrity_guards.sql` (and prior migrations through `006`) before first import on a fresh DB.
 
-Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). **Pack creates** that fail audit are rolled back (slug freed). Car upserts, pack **patches**, and deletes that already succeeded are not auto-reverted; clearer delete recovery remains a follow-up. Fix the DB/audit issue and re-run as needed.
+Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). **Pack creates** that fail audit are rolled back (slug freed). Car upserts and pack **patches** that already succeeded are not auto-reverted. **Deletes** that succeed then fail audit log `deleted_but_unaudited` — data is already gone; fix audit access and do not re-delete the same ids/slugs.
 
 Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
@@ -448,11 +449,12 @@ Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
 ```bash
 npm run delete-cars -- --ids 123456,234567
+npm run delete-cars -- --ids 123456 --force   # if pack mutations / explicit_ids reference the car
 npm run clear-stubs                 # make/model both null (seed-stubs rows)
 npm run delete-packs -- --slugs test-pack
 ```
 
-Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes require a successful `config_change_events` insert (same fail-closed rule as imports). If audit fails after a delete, the row may already be gone without an audit trail — see catalog/pack drops READMEs.
+Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. `delete-cars` refuses pack-referenced cars unless `--force` (mutations CASCADE; explicit ids may keep dead entries). Deletes require a successful `config_change_events` insert; if audit fails after delete, see `deleted_but_unaudited` in logs / catalog READMEs — do not re-delete.
 
 ---
 

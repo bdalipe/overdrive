@@ -25,15 +25,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `supabase/config.toml` `[db.seed]` disabled (no missing `seed.sql` on `db reset`; catalog via npm scripts)
 - Pack `updateDefinition` accepts explicit `description: null` so import patches can clear the field
 - Pack create: roll back the new pack if required audit fails; `rollbackCreatedPack` throws on rollback delete failure (multi-pack abort still attempts all prior creates)
+- Delete scripts: `deleted_but_unaudited` error path when audit fails after a successful delete
+- `delete-cars` refuses cars referenced by pack mutations / `explicit_car_ids` unless `--force`
 
 ### Planned (post-hygiene)
 
 **Catalog / pack-import follow-up**
 - Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
 - Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
-- Car delete preflight when rows are referenced by pack mutations / eligibility ids (CASCADE can silently drop mutations today)
 - Batch pack-mutation inserts for large `mutations.add` arrays
-- Delete scripts: clearer unaudited-delete recovery (writes can succeed before a fail-closed audit error)
 
 **Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)
