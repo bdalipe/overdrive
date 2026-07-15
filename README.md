@@ -64,7 +64,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `/admin clear-cache` (live bot pack/car/eligibility/image cache) | Done |
 | `pack_size` max 50 (app + DB CHECK) + default-pack delete trigger (`007`) | Done |
 | `/open-pack` reveal sessions keyed by message id | Done |
-| Pack create mid-failure rollback (`import-packs`) | Done |
+| Pack create mid-failure / create+audit rollback (`import-packs`) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
 | `register-commands` fails closed with zero active packs | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
@@ -360,7 +360,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `/admin clear-cache` + catalog script refresh hints (live bot cache is separate from script invalidate)
 - [x] `pack_size` 1–50 + default-pack DB delete guard (`007_pack_integrity_guards.sql`)
 - [x] `/open-pack` reveal sessions keyed by message id (15 min TTL)
-- [x] Pack create mid-failure rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails
+- [x] Pack create mid-failure / create+audit rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails; rollback delete failures thrown
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
 - [x] `register-commands` fails when there are no active packs (no fake `default` choice)
 - [x] `findEligible` query path for filtered / explicit_ids packs
@@ -369,7 +369,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 ### Catalog & pack-import follow-ups (post–Phase 1)
 - [ ] True partial-patch car imports (today’s full-row upsert nulls omitted fields)
 - [ ] Faster batch serial-id allocation for large catalog / stub drops
-- [ ] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
+- [x] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
 - [x] Pack patch can clear `description` to null when the key is present
 - [ ] Car-delete preflight for packs that reference mutations / explicit ids (CASCADE awareness)
 - [ ] Batch pack-mutation inserts; clearer delete + unaudited recovery messaging
@@ -419,7 +419,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise). On each normal draw slot, every eligible bonus rolls independently; if several succeed, one is chosen at random for that slot
 - **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
 - **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
-- **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write are not auto-reverted. **Known follow-up:** if create succeeds but the required audit insert fails, the pack can remain (slug blocked) until manual cleanup or a future create+audit rollback
+- **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; create+audit failure also rolls back the new pack; rollback delete failures are thrown. Earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write or on audit are not auto-reverted
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Local `supabase db reset` does not run SQL seeds (`[db.seed]` disabled); use npm catalog scripts after migrations
 - **Card composition** — car photo base + separate overlay components; each toggleable
@@ -440,7 +440,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 3. Run `npm run import-cars` or `npm run import-packs`.
 4. Apply migration `007_pack_integrity_guards.sql` (and prior migrations through `006`) before first import on a fresh DB.
 
-Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). Catalog or pack writes that already succeeded are not auto-reverted; create+audit rollback for packs and clearer delete recovery are follow-ups. Fix the DB/audit issue and re-run or clean up orphans as needed.
+Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). **Pack creates** that fail audit are rolled back (slug freed). Car upserts, pack **patches**, and deletes that already succeeded are not auto-reverted; clearer delete recovery remains a follow-up. Fix the DB/audit issue and re-run as needed.
 
 Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 

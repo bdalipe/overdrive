@@ -171,6 +171,7 @@ async function applyMutations(packRepository, packId, mutationsInput) {
 
 /**
  * Remove a pack row created mid-import after a later create step failed (CASCADE children).
+ * Throws if the rollback delete fails so callers do not silently leave slug-blocking orphans.
  */
 async function rollbackCreatedPack(packRepository, packId, context = {}) {
     try {
@@ -185,6 +186,19 @@ async function rollbackCreatedPack(packRepository, packId, context = {}) {
             ...context,
             error: rollbackError.message,
         });
+
+        const original =
+            context.cause != null
+                ? String(context.cause)
+                : context.reason != null
+                  ? String(context.reason)
+                  : null;
+        const suffix = original ? ` (original: ${original})` : '';
+        const err = new Error(
+            `Pack create rollback failed for pack ${packId}: ${rollbackError.message}${suffix}`,
+        );
+        err.cause = rollbackError;
+        throw err;
     }
 }
 
@@ -215,6 +229,7 @@ async function applyPackEntry({
 
     const before = existing ? await snapshotPack(packRepository, existing.id) : null;
     let pack;
+    let createdPackId = null;
 
     const effectiveEligibility = entry.eligibility
         ? normalizeEligibilityInput(entry.eligibility)
@@ -259,7 +274,6 @@ async function applyPackEntry({
 
         const weights = await dropRateService.buildWeightsForCreate(ratePatch);
         const packId = await assignPackId(packRepository, definition.id ?? null);
-        let createdPackId = null;
 
         try {
             pack = await packRepository.createDefinition({
@@ -330,19 +344,32 @@ async function applyPackEntry({
 
     const after = await snapshotPack(packRepository, pack.id);
 
-    await logConfigChange(
-        configChangeRepository,
-        buildPackCatalogImportEvent({
-            actorId,
-            dropId,
-            filename,
-            packId: pack.id,
-            packSlug: pack.slug,
-            action: isCreate ? 'create' : 'patch',
-            before,
-            after,
-        }),
-    );
+    try {
+        await logConfigChange(
+            configChangeRepository,
+            buildPackCatalogImportEvent({
+                actorId,
+                dropId,
+                filename,
+                packId: pack.id,
+                packSlug: pack.slug,
+                action: isCreate ? 'create' : 'patch',
+                before,
+                after,
+            }),
+        );
+    } catch (error) {
+        if (isCreate && createdPackId != null) {
+            await rollbackCreatedPack(packRepository, createdPackId, {
+                packSlug: pack.slug,
+                filename,
+                reason: 'audit_failed_after_create',
+                cause: error.message,
+            });
+        }
+
+        throw error;
+    }
 
     return {
         packId: pack.id,
@@ -389,12 +416,26 @@ async function applyPackDrop({
             }
         }
     } catch (error) {
+        const rollbackFailures = [];
+
         for (const packId of [...createdPackIds].reverse()) {
-            await rollbackCreatedPack(packRepository, packId, {
-                filename,
-                reason: 'drop_aborted_after_prior_create',
-                cause: error.message,
-            });
+            try {
+                await rollbackCreatedPack(packRepository, packId, {
+                    filename,
+                    reason: 'drop_aborted_after_prior_create',
+                    cause: error.message,
+                });
+            } catch (rollbackError) {
+                rollbackFailures.push(`${packId}: ${rollbackError.message}`);
+            }
+        }
+
+        if (rollbackFailures.length > 0) {
+            const err = new Error(
+                `Drop aborted (${error.message}); prior-create rollback also failed: ${rollbackFailures.join('; ')}`,
+            );
+            err.cause = error;
+            throw err;
         }
 
         throw error;

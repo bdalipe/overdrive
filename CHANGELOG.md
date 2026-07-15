@@ -24,13 +24,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Docs: catalog + Phase 2–4 planned follow-ups expanded (import/audit edge cases, reveal ownership, pack module splits, open-path guarantee polish); maintainer drops READMEs note known limitations
 - `supabase/config.toml` `[db.seed]` disabled (no missing `seed.sql` on `db reset`; catalog via npm scripts)
 - Pack `updateDefinition` accepts explicit `description: null` so import patches can clear the field
+- Pack create: roll back the new pack if required audit fails; `rollbackCreatedPack` throws on rollback delete failure (multi-pack abort still attempts all prior creates)
 
 ### Planned (post-hygiene)
 
 **Catalog / pack-import follow-up**
 - Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
 - Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
-- Pack create: roll back the new pack if the required `config_change_events` audit fails (avoid stuck slugs); surface rollback failures clearly
 - Car delete preflight when rows are referenced by pack mutations / eligibility ids (CASCADE can silently drop mutations today)
 - Batch pack-mutation inserts for large `mutations.add` arrays
 - Delete scripts: clearer unaudited-delete recovery (writes can succeed before a fail-closed audit error)

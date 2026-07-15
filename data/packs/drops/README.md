@@ -145,13 +145,11 @@ Each mutation entry:
 
 ## Manifest
 
-`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. **Patches** that fail mid-write are not auto-reverted (re-run or fix manually).
-
-**Known follow-up:** if a **create** finishes packing writes but the required audit insert then fails, the pack row can remain and block the slug on retry — delete the orphan pack (or wait for create+audit rollback) before re-running.
+`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If create packing writes succeed but the required **audit** insert fails, that new pack is rolled back the same way. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. Rollback delete failures are thrown (not only logged). **Patches** that fail mid-write or on audit are not auto-reverted (re-run or fix manually).
 
 ## Audit log
 
-Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error (pack writes for that entry may already have applied). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
+Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error. For **creates**, the new pack is rolled back first so the slug is reusable; **patches** may already have applied (not auto-reverted). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
 **Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Delete also fails closed if audit insert fails — the pack may already be gone with no audit row; fix audit write access and note the gap, then re-run `npm run register-commands` afterward.
 
