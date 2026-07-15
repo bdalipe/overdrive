@@ -46,7 +46,7 @@ function buildCardDisplay(car) {
 
 /**
  * Pack reveal embed title: `Year Make Model (★★★)` — e.g. `2004 Porsche 911 (★★★)`.
- * Omits year when unavailable; rarity in parentheses. Phase 1–2 interim UX until Phase 3 card template.
+ * Omits year when unavailable; rarity in parentheses. Interim UX until Phase 2 card compose.
  */
 function formatPackRevealTitle(car) {
     const displayName = formatDisplayName(car);
@@ -60,33 +60,8 @@ function formatPackRevealTitle(car) {
     return `${yearPrefix}${displayName}${raritySuffix}`;
 }
 
-/**
- * Discord embed field list for a card (reserved for debug/admin or Phase 3+; not used in Phase 1–2 pack reveal).
- */
-function buildCardEmbedFields(car) {
-    const display = buildCardDisplay(car);
-
-    return [
-        { name: 'Rarity', value: display.rarityStars, inline: true },
-        { name: 'Performance', value: display.performance, inline: true },
-        { name: 'Class', value: display.performanceClass, inline: true },
-        { name: 'Make', value: display.make, inline: true },
-        { name: 'Model', value: display.model, inline: true },
-        { name: '0–60', value: display.zeroToSixty, inline: true },
-        { name: 'Top speed', value: display.topSpeed, inline: true },
-        { name: 'Handling', value: display.handling, inline: true },
-        { name: 'Weight', value: display.weight, inline: true },
-        { name: 'Drive', value: display.driveType, inline: true },
-        { name: 'Tyres', value: display.tyreType, inline: true },
-        { name: 'Body', value: display.bodyStyle, inline: true },
-        { name: 'Country', value: display.country, inline: true },
-        { name: 'Year', value: display.modelYear, inline: true },
-    ];
-}
-
 module.exports = {
     formatRarityStars,
     formatPackRevealTitle,
     buildCardDisplay,
-    buildCardEmbedFields,
 };

@@ -76,9 +76,9 @@ Each file is a JSON object:
 | `slug` | **Yes** | Unique key (e.g. `default`, `classic-jdm`) |
 | `name` | **Yes** | Display name |
 | `is_default` | No | Default `false`. Only one default pack allowed |
-| `pack_size` | No | Cards per open; default `5` |
-| `is_active` | No | Default `true` |
-| `description` | No | Optional text |
+| `pack_size` | No | Cards per open; default `5`; **1–50** for now (DB CHECK + `import-packs` / open). Cap may rise when multi-embed pack opens land. Must be ≥ number of `chance_percent: 100` mutations after the drop |
+| `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
+| `description` | No | Optional text. **Patch:** set `"description": null` to clear |
 | `created_at` | — | DB-managed; do not set in drops |
 
 ### `pack_drop_rates` (`drop_rates` object)
@@ -95,6 +95,8 @@ Keys `"1"`–`"6"` map to rarity tier weight (percent). **Create:** omitted tier
 
 **Filter keys** (AND logic): `rarities`, `countries`, `bodyStyles`, `tags`, `yearMin`, `yearMax`.
 
+When `yearMin` and/or `yearMax` is set, cars with a null `model_year` are **excluded** (same rule in SQL `findEligible` and in-memory `matchesFilter`).
+
 **Patch:** omit `eligibility` to leave unchanged. **Create:** omit → `all_cars`.
 
 ### `pack_mutations` (`mutations` object)
@@ -103,7 +105,7 @@ Keys `"1"`–`"6"` map to rarity tier weight (percent). **Create:** omitted tier
 |-------|-------|
 | `replace` | `true` = delete all mutations for the pack, then apply `add` |
 | `remove_ids` | Array of mutation `id` values to delete (patch only, when `replace` is false) |
-| `add` | Array of mutation objects to insert |
+| `add` | Array of mutation objects to insert (applied in one batch insert) |
 
 Each mutation entry:
 
@@ -112,7 +114,7 @@ Each mutation entry:
 | `mutation_type` | `car` \| `filter` |
 | `target_car_id` | Required for `car` |
 | `filter_json` | Required for `filter` |
-| `chance_percent` | `1`–`100`; `100` = guarantee slot |
+| `chance_percent` | `1`–`100`; `100` = guarantee slot (**bypasses** pack eligibility; resolves from the full catalog). Count of guarantees must be ≤ `pack_size` (`import-packs` throws otherwise). Bonuses (`&lt;100`) must resolve **within** eligibility — `import-packs` **throws** before writing if a bonus cannot (also when eligibility is narrowed over existing bonuses). On each normal draw, **every** eligible bonus rolls independently; if more than one succeeds, one winner is chosen at random for that slot |
 | `rarity_gate` | Optional `1`–`6`; bonus only when that rarity is drawn |
 | `id` | DB serial; omit on add (use `remove_ids` to delete) |
 | `created_at` | DB-managed; do not set |
@@ -143,12 +145,12 @@ Each mutation entry:
 
 ## Manifest
 
-`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`).
+`data/packs/manifest.json` tracks applied vs pending drops (same workflow as `data/catalog/manifest.json`). A drop is marked applied only after **every** pack entry in the file succeeds. Mid-create failures delete the new pack (`deletePackForRollback`, CASCADE on rates/eligibility/mutations) so a re-run is not blocked by a half-created slug. If create packing writes succeed but the required **audit** insert fails, that new pack is rolled back the same way. If a later entry in the same file fails, earlier **creates** from that drop are also rolled back. Rollback delete failures are thrown (not only logged). **Patches** that fail mid-write or on audit are not auto-reverted (re-run or fix manually).
 
 ## Audit log
 
-Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
+Every successful import appends rows to `config_change_events` (`source: import-packs`, `entity_type: pack`). If the audit insert fails, `import-packs` exits with an error. For **creates**, the new pack is rolled back first so the slug is reusable; **patches** may already have applied (not auto-reverted). Set `MAINTAINER_DISCORD_USER_ID` in `.env` to attribute imports to your Discord user.
 
-**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). Re-run `npm run register-commands` afterward.
+**Deletes:** `npm run delete-packs -- --slugs test-pack` (cannot delete the default pack). If audit fails after a successful delete, the script logs `deleted_but_unaudited` and exits non-zero — the pack is already gone; fix audit write access and **do not re-delete** that slug; re-run `npm run register-commands` afterward if choices need updating.
 
 Do not commit proprietary pack configs to a public repo unless intended.

@@ -5,10 +5,11 @@ const { createServices } = require('../src/services');
 const { snapshotPack } = require('../src/services/pack-import');
 const {
     buildPackCatalogDeleteEvent,
-    logConfigChange,
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
+const { logConfigChangeAfterDelete } = require('./lib/audit-after-delete');
 
 function parseSlugs(argv) {
     const flagIndex = argv.indexOf('--slugs');
@@ -69,19 +70,40 @@ async function main() {
             continue;
         }
 
-        services.packs.invalidatePackConfig(existing.id);
+        services.packs.invalidatePackConfig(existing.id, {
+            isDefault: Boolean(existing.is_default),
+        });
 
-        await logConfigChange(
-            repositories.configChanges,
-            buildPackCatalogDeleteEvent({
-                actorId,
-                packId: existing.id,
-                packSlug: existing.slug,
-                before,
-            }),
-        );
+        try {
+            await logConfigChangeAfterDelete(
+                repositories.configChanges,
+                buildPackCatalogDeleteEvent({
+                    actorId,
+                    packId: existing.id,
+                    packSlug: existing.slug,
+                    before,
+                }),
+                {
+                    summary: `pack ${existing.slug} (${existing.id})`,
+                    entityType: 'pack',
+                    packId: existing.id,
+                    packSlug: existing.slug,
+                },
+            );
+        } catch (error) {
+            logger.error('delete_packs_partial', {
+                deletedSoFar: deleted,
+                failedSlug: existing.slug,
+                error: error.message,
+            });
+            throw error;
+        }
 
         deleted.push({ packId: existing.id, packSlug: existing.slug });
+    }
+
+    if (deleted.length > 0) {
+        logBotCacheRefreshHint(logger, { scope: 'delete-packs', affected: 'pack-config' });
     }
 
     logger.info('delete_packs_complete', {

@@ -19,24 +19,34 @@ const SESSION_TTL_MS = 15 * 60 * 1000;
 /** Discord allows at most 25 choices on a string option. */
 const MAX_PACK_CHOICES = 25;
 
-/** @type {Map<string, { pages: object[], payloads: object[], expiresAt: number }>} */
+/** @type {Map<string, { pages: object[], payloads: object[], packSlug?: string, userId?: string, expiresAt: number }>} */
 const sessions = new Map();
 
-function setSession(userId, session) {
-    sessions.set(userId, {
+function pruneExpiredSessions(now = Date.now()) {
+    for (const [key, session] of sessions) {
+        if (now > session.expiresAt) {
+            sessions.delete(key);
+        }
+    }
+}
+
+/** Key by Discord message id so concurrent opens by the same user stay independent. */
+function setSession(messageId, session) {
+    pruneExpiredSessions();
+    sessions.set(messageId, {
         ...session,
         expiresAt: Date.now() + SESSION_TTL_MS,
     });
 }
 
-function getSession(userId) {
-    const session = sessions.get(userId);
+function getSession(messageId) {
+    const session = sessions.get(messageId);
     if (!session) {
         return null;
     }
 
     if (Date.now() > session.expiresAt) {
-        sessions.delete(userId);
+        sessions.delete(messageId);
         return null;
     }
 
@@ -97,11 +107,37 @@ function sortActivePacks(packs) {
     });
 }
 
+/**
+ * Warn when active packs exceed Discord's 25 string-option choice limit.
+ * @param {object[]} activePacks
+ * @param {string} source e.g. `register-commands` | `import-packs` | `buildPackChoices`
+ */
+function warnIfActivePacksExceedChoiceLimit(activePacks, source) {
+    const activeCount = Array.isArray(activePacks) ? activePacks.length : 0;
+    if (activeCount <= MAX_PACK_CHOICES) {
+        return;
+    }
+
+    const sorted = sortActivePacks(activePacks);
+    const omitted = sorted.slice(MAX_PACK_CHOICES).map((pack) => pack.slug);
+
+    logger.warn('open_pack_choices_truncated', {
+        source,
+        activeCount,
+        maxChoices: MAX_PACK_CHOICES,
+        registeredChoices: MAX_PACK_CHOICES,
+        omittedCount: omitted.length,
+        omittedSlugs: omitted,
+    });
+}
+
 function buildPackChoices(activePacks) {
     const packs = sortActivePacks(activePacks).slice(0, MAX_PACK_CHOICES);
 
     if (packs.length === 0) {
-        return [{ name: 'Standard Pack', value: 'default' }];
+        throw new Error(
+            'No active packs available for /open-pack choices. Activate or import a pack, then re-run register-commands.',
+        );
     }
 
     const usedValues = new Set();
@@ -205,12 +241,6 @@ async function execute(interaction, config) {
 
     const { pages, payloads } = buildRevealPayloads(cards, result.packSlug);
 
-    setSession(interaction.user.id, {
-        pages,
-        payloads,
-        packSlug: result.packSlug,
-    });
-
     logger.info('pack_opened', {
         userId: interaction.user.id,
         packId: result.packId,
@@ -218,12 +248,17 @@ async function execute(interaction, config) {
         packSize: result.packSize,
     });
 
-    await interaction.editReply(payloads[0]);
+    const message = await interaction.editReply(payloads[0]);
+    setSession(message.id, {
+        pages,
+        payloads,
+        packSlug: result.packSlug,
+        userId: interaction.user.id,
+    });
 }
 
 async function handleButton(interaction, _config) {
-    const openerId = interaction.message?.interaction?.user?.id ?? interaction.user.id;
-    const session = getSession(openerId);
+    const session = getSession(interaction.message.id);
 
     if (!session) {
         await interaction.reply({
@@ -245,6 +280,9 @@ module.exports = {
     name: 'open-pack',
     description: 'Open a pack and reveal your cards',
     paginationPrefix: PAGINATION_PREFIX,
+    MAX_PACK_CHOICES,
+    buildPackChoices,
+    warnIfActivePacksExceedChoiceLimit,
     buildDefinition,
     execute,
     handleButton,

@@ -2,14 +2,16 @@ const path = require('path');
 const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
+const { createServices } = require('../src/services');
 const {
     buildCarCatalogImportEvent,
     logConfigChange,
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
-const { generateSerialId } = require('../src/shared/generate-serial-id');
-const { normalizeCarForDb } = require('../src/models/car');
+const { generateSerialIds } = require('../src/shared/generate-serial-id');
+const { normalizeCarForDb, mergeCarForDb } = require('../src/models/car');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 const {
     readManifest,
     writeManifest,
@@ -17,29 +19,62 @@ const {
     readDropFile,
 } = require('./lib/catalog');
 
-async function assignCarId(carRepo, explicitId) {
-    if (explicitId != null) {
-        return explicitId;
+/**
+ * @param {object} entry
+ * @param {Map<number, object>} existingById
+ * @param {number|null} assignedId - pre-allocated id when entry has no explicit id
+ */
+function buildCarRow(entry, existingById, assignedId) {
+    const replace = entry.replace === true;
+    const explicitId = entry.id ?? null;
+    const existing = explicitId != null ? existingById.get(explicitId) ?? null : null;
+
+    if (existing && !replace) {
+        return { row: mergeCarForDb(existing, entry), action: 'patch' };
     }
 
-    return generateSerialId({
-        exists: (id) => carRepo.exists(id),
-    });
+    const normalized = normalizeCarForDb(entry);
+    normalized.id = explicitId != null ? explicitId : assignedId;
+
+    if (normalized.id == null) {
+        throw new Error('buildCarRow: missing id for create/replace');
+    }
+
+    return {
+        row: normalized,
+        action: existing && replace ? 'replace' : 'create',
+    };
 }
 
-async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
+async function importDrop(carRepo, configChangeRepo, actorId, drop, filename, taken) {
     const cars = drop.cars ?? [];
 
     if (!Array.isArray(cars) || cars.length === 0) {
         throw new Error(`Drop ${filename} has no cars array`);
     }
 
+    const explicitIds = cars
+        .map((entry) => entry.id)
+        .filter((id) => id != null)
+        .map((id) => Number(id));
+    const existingById = await carRepo.findByIds(explicitIds);
+
+    for (const id of explicitIds) {
+        taken.add(id);
+    }
+
+    const autoCount = cars.filter((entry) => entry.id == null).length;
+    const autoIds = generateSerialIds(autoCount, { taken });
+    let autoIndex = 0;
+
     const rows = [];
+    const actions = { create: 0, patch: 0, replace: 0 };
 
     for (const entry of cars) {
-        const normalized = normalizeCarForDb(entry);
-        normalized.id = await assignCarId(carRepo, entry.id ?? null);
-        rows.push(normalized);
+        const assignedId = entry.id == null ? autoIds[autoIndex++] : null;
+        const { row, action } = buildCarRow(entry, existingById, assignedId);
+        rows.push(row);
+        actions[action] += 1;
     }
 
     await carRepo.upsertMany(rows);
@@ -60,6 +95,7 @@ async function importDrop(carRepo, configChangeRepo, actorId, drop, filename) {
         dropId: drop.dropId ?? filename,
         count: rows.length,
         ids: carIds,
+        actions,
     };
 }
 
@@ -67,6 +103,7 @@ async function main() {
     const config = loadEnv();
     const supabase = createSupabaseClient(config);
     const repositories = createRepositories(supabase);
+    const services = createServices(repositories);
     const actorId = resolveMaintainerActorId(config);
 
     const { manifest, manifestPath } = readManifest(config.botEnv);
@@ -77,6 +114,7 @@ async function main() {
         return;
     }
 
+    const taken = new Set(await repositories.cars.listIds());
     const appliedNow = [];
 
     for (const filename of pending) {
@@ -87,6 +125,7 @@ async function main() {
             actorId,
             drop,
             filename,
+            taken,
         );
 
         manifest.applied.push(filename);
@@ -96,12 +135,16 @@ async function main() {
             filename,
             dropId: result.dropId,
             count: result.count,
+            actions: result.actions,
         });
     }
 
     manifest.pending = manifest.pending.filter((name) => !pending.includes(name));
     manifest.lastUpdated = new Date().toISOString();
     writeManifest(manifestPath, manifest);
+
+    services.packs.invalidateCarPool();
+    logBotCacheRefreshHint(logger, { scope: 'import-cars', affected: 'car-pool' });
 
     logger.info('import_cars_complete', {
         botEnv: config.botEnv,

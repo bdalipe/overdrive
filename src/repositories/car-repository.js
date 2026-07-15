@@ -1,6 +1,36 @@
 const { wrapRepositoryError } = require('./errors');
 
 const TABLE = 'cars';
+/** Must be ≤ PostgREST `max_rows` (see supabase/config.toml). */
+const PAGE_SIZE = 1000;
+
+/**
+ * Fetch every matching row by paging with `.range()`.
+ * A single unpaged `.select()` silently truncates at `max_rows`.
+ */
+async function fetchAllRows(buildQuery, operation) {
+    const rows = [];
+    let from = 0;
+
+    for (;;) {
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+
+        if (error) {
+            throw wrapRepositoryError(operation, error);
+        }
+
+        const page = data ?? [];
+        rows.push(...page);
+
+        if (page.length < PAGE_SIZE) {
+            break;
+        }
+
+        from += PAGE_SIZE;
+    }
+
+    return rows;
+}
 
 function createCarRepository(supabase) {
     async function findById(id) {
@@ -17,6 +47,30 @@ function createCarRepository(supabase) {
         return data;
     }
 
+    /**
+     * @param {number[]} ids
+     * @returns {Promise<Map<number, object>>}
+     */
+    async function findByIds(ids) {
+        const unique = [...new Set((ids ?? []).map((id) => Number(id)).filter((id) => Number.isInteger(id)))];
+        const byId = new Map();
+
+        if (unique.length === 0) {
+            return byId;
+        }
+
+        const rows = await fetchAllRows(
+            () => supabase.from(TABLE).select('*').in('id', unique).order('id', { ascending: true }),
+            'cars.findByIds',
+        );
+
+        for (const row of rows) {
+            byId.set(row.id, row);
+        }
+
+        return byId;
+    }
+
     async function exists(id) {
         const { data, error } = await supabase
             .from(TABLE)
@@ -29,20 +83,6 @@ function createCarRepository(supabase) {
         }
 
         return data != null;
-    }
-
-    async function upsert(car) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .upsert(car, { onConflict: 'id' })
-            .select()
-            .single();
-
-        if (error) {
-            throw wrapRepositoryError('cars.upsert', error);
-        }
-
-        return data;
     }
 
     async function upsertMany(cars) {
@@ -62,35 +102,31 @@ function createCarRepository(supabase) {
         return data ?? [];
     }
 
-    async function findByRarity(rarity) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*')
-            .eq('rarity', rarity);
-
-        if (error) {
-            throw wrapRepositoryError('cars.findByRarity', error);
-        }
-
-        return data ?? [];
+    async function listAll() {
+        return fetchAllRows(
+            () => supabase.from(TABLE).select('*').order('id', { ascending: true }),
+            'cars.listAll',
+        );
     }
 
-    async function listAll() {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*')
-            .order('id', { ascending: true });
+    /**
+     * All car ids (paged). Used for batch serial allocation.
+     * @returns {Promise<number[]>}
+     */
+    async function listIds() {
+        const rows = await fetchAllRows(
+            () => supabase.from(TABLE).select('id').order('id', { ascending: true }),
+            'cars.listIds',
+        );
 
-        if (error) {
-            throw wrapRepositoryError('cars.listAll', error);
-        }
-
-        return data ?? [];
+        return rows.map((row) => row.id);
     }
 
     /**
      * Resolve cars for a pack_eligibility row without loading the full catalog when possible.
-     * Filter semantics match pack-service `matchesFilter` (null year bypasses year bounds).
+     * Filter semantics match pack-service `matchesFilter`.
+     * When `yearMin` / `yearMax` is set, cars with null `model_year` are excluded.
+     * Results are paged so pools are not silently truncated at PostgREST `max_rows`.
      */
     async function findEligible(eligibility) {
         if (!eligibility || eligibility.rule_type === 'all_cars') {
@@ -104,17 +140,15 @@ function createCarRepository(supabase) {
                 return [];
             }
 
-            const { data, error } = await supabase
-                .from(TABLE)
-                .select('*')
-                .in('id', ids)
-                .order('id', { ascending: true });
-
-            if (error) {
-                throw wrapRepositoryError('cars.findEligible', error);
-            }
-
-            return data ?? [];
+            return fetchAllRows(
+                () =>
+                    supabase
+                        .from(TABLE)
+                        .select('*')
+                        .in('id', ids)
+                        .order('id', { ascending: true }),
+                'cars.findEligible',
+            );
         }
 
         if (eligibility.rule_type !== 'filter') {
@@ -122,57 +156,37 @@ function createCarRepository(supabase) {
         }
 
         const filter = eligibility.filter_json ?? {};
-        let query = supabase.from(TABLE).select('*');
 
-        if (Array.isArray(filter.rarities) && filter.rarities.length > 0) {
-            query = query.in('rarity', filter.rarities);
-        }
+        return fetchAllRows(() => {
+            let query = supabase.from(TABLE).select('*');
 
-        if (Array.isArray(filter.countries) && filter.countries.length > 0) {
-            query = query.in('country', filter.countries);
-        }
+            if (Array.isArray(filter.rarities) && filter.rarities.length > 0) {
+                query = query.in('rarity', filter.rarities);
+            }
 
-        if (Array.isArray(filter.bodyStyles) && filter.bodyStyles.length > 0) {
-            query = query.in('body_style', filter.bodyStyles);
-        }
+            if (Array.isArray(filter.countries) && filter.countries.length > 0) {
+                query = query.in('country', filter.countries);
+            }
 
-        if (Array.isArray(filter.tags) && filter.tags.length > 0) {
-            query = query.in('tag', filter.tags);
-        }
+            if (Array.isArray(filter.bodyStyles) && filter.bodyStyles.length > 0) {
+                query = query.in('body_style', filter.bodyStyles);
+            }
 
-        // Match in-memory matchesFilter: null model_year is not excluded by year bounds.
-        if (filter.yearMin != null && filter.yearMax != null) {
-            query = query.or(
-                `model_year.is.null,and(model_year.gte.${Number(filter.yearMin)},model_year.lte.${Number(filter.yearMax)})`,
-            );
-        } else if (filter.yearMin != null) {
-            query = query.or(`model_year.is.null,model_year.gte.${Number(filter.yearMin)}`);
-        } else if (filter.yearMax != null) {
-            query = query.or(`model_year.is.null,model_year.lte.${Number(filter.yearMax)}`);
-        }
+            if (Array.isArray(filter.tags) && filter.tags.length > 0) {
+                query = query.in('tag', filter.tags);
+            }
 
-        const { data, error } = await query.order('id', { ascending: true });
+            // Match matchesFilter: null model_year excluded when year bounds are set.
+            if (filter.yearMin != null) {
+                query = query.gte('model_year', Number(filter.yearMin));
+            }
 
-        if (error) {
-            throw wrapRepositoryError('cars.findEligible', error);
-        }
+            if (filter.yearMax != null) {
+                query = query.lte('model_year', Number(filter.yearMax));
+            }
 
-        return data ?? [];
-    }
-
-    async function deleteById(id) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id)
-            .select()
-            .maybeSingle();
-
-        if (error) {
-            throw wrapRepositoryError('cars.deleteById', error);
-        }
-
-        return data;
+            return query.order('id', { ascending: true });
+        }, 'cars.findEligible');
     }
 
     async function deleteByIds(ids) {
@@ -211,13 +225,12 @@ function createCarRepository(supabase) {
 
     return {
         findById,
+        findByIds,
         exists,
-        upsert,
         upsertMany,
-        findByRarity,
         listAll,
+        listIds,
         findEligible,
-        deleteById,
         deleteByIds,
         deleteStubs,
     };

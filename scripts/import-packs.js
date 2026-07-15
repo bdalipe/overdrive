@@ -5,7 +5,9 @@ const { createRepositories } = require('../src/repositories');
 const { createServices } = require('../src/services');
 const { resolveMaintainerActorId } = require('../src/services/config-change-events');
 const { applyPackDrop } = require('../src/services/pack-import');
+const openPack = require('../src/commands/open-pack');
 const logger = require('../src/shared/logger');
+const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
 const {
     readManifest,
     writeManifest,
@@ -34,6 +36,7 @@ async function main() {
         const drop = readDropFile(filename);
         const result = await applyPackDrop({
             packRepository: repositories.packs,
+            carRepository: repositories.cars,
             dropRateService: services.dropRates,
             configChangeRepository: repositories.configChanges,
             actorId,
@@ -42,10 +45,10 @@ async function main() {
         });
 
         for (const packResult of result.packs) {
-            services.packs.invalidatePackConfig(packResult.packId);
+            services.packs.invalidatePackConfig(packResult.packId, {
+                isDefault: packResult.isDefault,
+            });
         }
-
-        services.packs.invalidateCarPool();
 
         manifest.applied.push(filename);
         appliedNow.push({ filename, ...result });
@@ -61,9 +64,15 @@ async function main() {
     manifest.lastUpdated = new Date().toISOString();
     writeManifest(manifestPath, manifest);
 
+    const activePacks = await repositories.packs.listActive();
+    openPack.warnIfActivePacksExceedChoiceLimit(activePacks, 'import-packs');
+    logBotCacheRefreshHint(logger, { scope: 'import-packs', affected: 'pack-config' });
+
     logger.info('import_packs_complete', {
         botEnv: config.botEnv,
         applied: appliedNow.length,
+        activePacks: activePacks.length,
+        maxPackChoices: openPack.MAX_PACK_CHOICES,
         manifestPath: path.relative(process.cwd(), manifestPath),
     });
 }

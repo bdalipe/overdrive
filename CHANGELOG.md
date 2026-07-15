@@ -8,17 +8,93 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Planned (Phase 3+)
+### Changed (post-M1 harden-hygiene + catalog-patch → `0.2.3`)
+- Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
+- Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
+- Pack config invalidate clears `pack:default` only when the target pack is the default
+- `register-commands` fails when there are no active packs (no fake `/open-pack` `default` choice)
+- Shared pack eligibility/mutation `VALID_*` allowlists via `models/pack.js` (repository imports them)
+- `loadEnv()` exposes `maintainerDiscordUserId` (`MAINTAINER_DISCORD_USER_ID`) for catalog audit attribution
+- Pruned unused APIs: `resolveEligibleCars`; `packs.updatePackSize`; `cars.upsert` / `findByRarity` / `deleteById`; `stats.insertEvent`; `rollRarityForPack`; `buildCardEmbedFields`; pack-service re-exports of `RESERVED_DEFAULT_PACK_ID`
+- Year-bounded pack filters exclude cars with null `model_year` (`matchesFilter` + `findEligible`)
+- Pack bonus mutations (`chance_percent` &lt; 100) each roll independently per draw; multiple successes pick one winner at random for that slot
+- Catalog import/delete audit (`config_change_events`) fails closed if the audit insert fails; `/open-pack` `stats_events` inserts remain best-effort
+- Docs polish: test-pack description uses `/open-pack`; embeds/README renderers wording matches `/admin debug-latency`; car weight comment points at Phase 4 settings
+- Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
+- `supabase/config.toml` `[db.seed]` disabled (no missing `seed.sql` on `db reset`; catalog via npm scripts)
+- Pack `updateDefinition` accepts explicit `description: null` so import patches can clear the field
+- Pack create: roll back the new pack if required audit fails; `rollbackCreatedPack` throws on rollback delete failure (multi-pack abort still attempts all prior creates)
+- Delete scripts: `deleted_but_unaudited` error path when audit fails after a successful delete
+- `delete-cars` refuses cars referenced by pack mutations / `explicit_car_ids` unless `--force`
+- Car catalog import: merge patches for existing ids (omitted fields kept); `replace: true` for full-row wipe; `mergeCarForDb` + `cars.findByIds`
+- Batch serial-id allocation: `generateSerialIds` / `claimSerialId` against a taken set; `cars.listIds`; used by `import-cars` and `seed-stubs`
+- Pack import: batch `addMutations` for `mutations.add` (one insert instead of N+1)
+- Docs: catalog & pack-import follow-ups marked complete; Phase 2+ Planned only (no remaining catalog Planned items)
+
+### Planned (post–`0.2.3`)
+
+**Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)
-- Phase 4: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
-- Phase 5: Garage, wishlist, profile, Wispbyte prod deploy
+- Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
+- Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
+- Bound concurrent image reachability probes when validating non-trusted URLs
+- Shared pack eligibility filter logic (SQL + in-memory + import checks); normalize eligibility cache keys
+- `/open-pack` reveal ownership: enforce opener via session `userId` (do not fail-open when message interaction metadata is missing)
+- Split long pack modules when that work lands (shared filters; thinner `pack-import` / `pack-service` / `pack-repository`); drop unused pack-service exports
+
+**Phase 3 — performance engine**
+- Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
+- Open-path polish: batch guarantee car lookups; reuse eligibility cache for filter guarantees
+
+**Phase 4 — collection & web**
+- Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
+
+**Phase 5+**
+- Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
 
 ### Deferred
-- Metrics start/complete for modals/autocomplete when those interaction types are added
+- Metrics: complete/error pairing on interaction failure paths; start/complete for modals/autocomplete when those types are added
+- `/admin debug-latency` sessions keyed by message id (like `/open-pack`) when convenient
+- Page `listActive` packs if catalogs approach PostgREST `max_rows` (Discord still caps 25 choices)
 - Imperial/metric display toggle
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
-- Phase 3/4 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+- Phase 2/3 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+
+---
+
+## [0.2.2] - 2026-07-13
+
+Post-M1 pack/cache integrity follow-up. `package.json` is set to `0.2.1` on this branch so the automated patch bump on merge to `develop` lands at `0.2.2`. Apply migration `007_pack_integrity_guards.sql` (`supabase db push`) and re-run `npm run register-commands` for `/admin clear-cache`.
+
+### Added
+- `/admin clear-cache` — clears this bot process pack config, car pool, and image probe caches
+- Migration `007_pack_integrity_guards.sql` — `pack_size` CHECK (1–50) and `BEFORE DELETE` trigger blocking default-pack deletion
+- `scripts/lib/bot-cache-hint.js` — warns after catalog scripts that in-process invalidate does not reach the live bot
+
+### Changed
+- Catalog scripts log `bot_cache_refresh_hint` after invalidate (use `/admin clear-cache`, restart, or ~60s TTL)
+- `import-cars` / `seed-stubs` invalidate the car pool after writes; `import-packs` no longer clears the car pool
+- Cap `pack_size` at **1–50** (`MAX_PACK_SIZE`) in app and DB; pack summary embed truncates at Discord’s 4096-character description limit
+- `/open-pack` reveal sessions keyed by **message id** (concurrent opens no longer clobber each other’s buttons)
+- Failed pack **creates** roll back the new pack row (CASCADE children); earlier creates in the same drop also roll back if a later entry fails (drop stays pending)
+
+### Documentation
+- README: admin clear-cache, restart/TTL table, `pack_size` / default-delete / session and import rollback notes; setup mentions migration `007`
+- Pack drops README: `pack_size` 1–50 and create-rollback / manifest behavior
+
+---
+
+## [0.2.1] - 2026-07-10
+
+Post-M1 correctness follow-up (catalog pagination and pack open/import guards).
+
+### Fixed
+- Paginate `cars.listAll` / `findEligible` past PostgREST row caps
+- `100%` pack mutations bypass eligibility; unresolved guarantees log; bonuses outside eligibility rejected at `import-packs`
+- Import rejects when guarantee count exceeds `pack_size`
+- Weighted rarity miss falls back to uniform pick among pool rarities; opens fail if card count ≠ `pack_size` (stats `packSize` matches configured size)
+- Warn when active packs exceed Discord’s 25 `/open-pack` choices (`import-packs` + `register-commands`)
 
 ---
 
@@ -167,7 +243,9 @@ Phase 1 schema scaffolding and Supabase client prep. `package.json` is set to `0
 ### Documentation
 - README development status, setup, versioning, and phased roadmap
 
-[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.2.0...develop
+[Unreleased]: https://github.com/bdalipe/overdrive/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/bdalipe/overdrive/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/bdalipe/overdrive/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/bdalipe/overdrive/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/bdalipe/overdrive/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/bdalipe/overdrive/compare/v0.1.4...v0.1.5

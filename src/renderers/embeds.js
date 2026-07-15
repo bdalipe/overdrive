@@ -3,8 +3,8 @@ const { EMBED_COLOR_PRIMARY } = require('../shared/theme');
 
 /**
  * Lightweight Discord embed builders for simple or admin/diagnostic commands
- * (`/hello`, `/admin debug-latency` ping/timing probes, etc.).
- * Pack reveal uses `pack-reveal.js`; composed cards use `renderers/card/` (Phase 3+).
+ * (`/hello`, `/admin debug-latency`).
+ * Pack reveal uses `pack-reveal.js`; composed cards use `renderers/card/` (Phase 2+).
  */
 
 function formatMs(value) {

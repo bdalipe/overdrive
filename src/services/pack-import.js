@@ -1,5 +1,6 @@
 const { generateSerialId } = require('../shared/generate-serial-id');
 const {
+    assertValidPackSize,
     collectDropRatePatch,
     normalizeEligibilityInput,
     normalizeMutationInput,
@@ -9,6 +10,8 @@ const {
     buildPackCatalogImportEvent,
     logConfigChange,
 } = require('./config-change-events');
+const { mutationResolvableInPool } = require('./pack-service');
+const logger = require('../shared/logger');
 
 async function snapshotPack(packRepository, packId) {
     const [pack, dropRates, eligibility, mutations] = await Promise.all([
@@ -44,6 +47,107 @@ async function assignPackId(packRepository, explicitId) {
     });
 }
 
+function defaultEligibility() {
+    return { rule_type: 'all_cars', filter_json: null, explicit_car_ids: null };
+}
+
+/**
+ * Bonus (&lt;100%) mutations must resolve inside pack eligibility.
+ * Guarantees (100%) may bypass eligibility and are not checked here.
+ */
+async function assertBonusMutationsWithinEligibility(
+    carRepository,
+    eligibility,
+    mutations,
+    packSlug,
+) {
+    const bonuses = (mutations ?? []).filter((mutation) => {
+        const chance = Number(mutation.chance_percent);
+        return chance > 0 && chance < 100;
+    });
+
+    if (bonuses.length === 0) {
+        return;
+    }
+
+    const eligibleCars = await carRepository.findEligible(eligibility);
+
+    for (const mutation of bonuses) {
+        if (mutationResolvableInPool(mutation, eligibleCars)) {
+            continue;
+        }
+
+        const target =
+            mutation.mutation_type === 'car'
+                ? ` target_car_id=${mutation.target_car_id}`
+                : ' (filter mutation)';
+
+        throw new Error(
+            `Bonus mutation outside pack eligibility for "${packSlug}":` +
+                ` mutation_type=${mutation.mutation_type}${target}` +
+                ` chance_percent=${mutation.chance_percent}.` +
+                ' Use chance_percent 100 to bypass eligibility, or adjust eligibility/mutation.',
+        );
+    }
+}
+
+/** Guarantees (100%) must not exceed configured pack_size. */
+function assertGuaranteeCountWithinPackSize(mutations, packSize, packSlug) {
+    const guaranteeCount = (mutations ?? []).filter(
+        (mutation) => Number(mutation.chance_percent) === 100,
+    ).length;
+
+    if (guaranteeCount > packSize) {
+        throw new Error(
+            `Too many guarantee mutations for "${packSlug}":` +
+                ` ${guaranteeCount} guarantees (chance_percent 100) exceed pack_size ${packSize}.` +
+                ' Reduce guarantees or increase pack_size.',
+        );
+    }
+}
+
+function resolveEffectivePackSize(entry, existing, isCreate) {
+    if (entry.pack_size != null) {
+        return assertValidPackSize(entry.pack_size);
+    }
+
+    if (isCreate) {
+        return 5;
+    }
+
+    return assertValidPackSize(existing.pack_size);
+}
+
+async function planMutationsAfterDrop(packRepository, packId, mutationsInput, { isCreate }) {
+    if (!mutationsInput) {
+        if (isCreate) {
+            return [];
+        }
+
+        return packRepository.getMutations(packId);
+    }
+
+    let current = [];
+
+    if (!isCreate) {
+        current = await packRepository.getMutations(packId);
+        const replace = Boolean(mutationsInput.replace);
+        const removeIds = mutationsInput.remove_ids ?? [];
+
+        if (replace) {
+            current = [];
+        } else if (removeIds.length > 0) {
+            const removeSet = new Set(removeIds.map((id) => Number(id)));
+            current = current.filter((mutation) => !removeSet.has(Number(mutation.id)));
+        }
+    }
+
+    const toAdd = mutationsInput.add ?? mutationsInput.set ?? [];
+    const normalizedAdds = toAdd.map((entry) => normalizeMutationInput(entry));
+
+    return [...current, ...normalizedAdds];
+}
+
 async function applyMutations(packRepository, packId, mutationsInput) {
     if (!mutationsInput) {
         return;
@@ -59,14 +163,48 @@ async function applyMutations(packRepository, packId, mutationsInput) {
         await packRepository.deleteMutations(packId, removeIds);
     }
 
-    for (const entry of toAdd) {
-        const mutation = normalizeMutationInput(entry);
-        await packRepository.addMutation(packId, mutation);
+    if (toAdd.length > 0) {
+        const mutations = toAdd.map((entry) => normalizeMutationInput(entry));
+        await packRepository.addMutations(packId, mutations);
+    }
+}
+
+/**
+ * Remove a pack row created mid-import after a later create step failed (CASCADE children).
+ * Throws if the rollback delete fails so callers do not silently leave slug-blocking orphans.
+ */
+async function rollbackCreatedPack(packRepository, packId, context = {}) {
+    try {
+        await packRepository.deletePackForRollback(packId);
+        logger.warn('pack_create_rolled_back', {
+            packId,
+            ...context,
+        });
+    } catch (rollbackError) {
+        logger.error('pack_create_rollback_failed', {
+            packId,
+            ...context,
+            error: rollbackError.message,
+        });
+
+        const original =
+            context.cause != null
+                ? String(context.cause)
+                : context.reason != null
+                  ? String(context.reason)
+                  : null;
+        const suffix = original ? ` (original: ${original})` : '';
+        const err = new Error(
+            `Pack create rollback failed for pack ${packId}: ${rollbackError.message}${suffix}`,
+        );
+        err.cause = rollbackError;
+        throw err;
     }
 }
 
 async function applyPackEntry({
     packRepository,
+    carRepository,
     dropRateService,
     configChangeRepository,
     actorId,
@@ -91,20 +229,43 @@ async function applyPackEntry({
 
     const before = existing ? await snapshotPack(packRepository, existing.id) : null;
     let pack;
+    let createdPackId = null;
+
+    const effectiveEligibility = entry.eligibility
+        ? normalizeEligibilityInput(entry.eligibility)
+        : isCreate
+          ? defaultEligibility()
+          : null;
+
+    const needsMutationPlan =
+        isCreate || entry.eligibility != null || entry.mutations != null || entry.pack_size != null;
+
+    if (needsMutationPlan) {
+        const plannedMutations = await planMutationsAfterDrop(
+            packRepository,
+            existing?.id,
+            entry.mutations,
+            { isCreate },
+        );
+
+        const packSize = resolveEffectivePackSize(entry, existing, isCreate);
+        assertGuaranteeCountWithinPackSize(plannedMutations, packSize, entry.slug);
+
+        if (entry.eligibility || entry.mutations || isCreate) {
+            const eligibilityForCheck =
+                effectiveEligibility ?? (await packRepository.getEligibility(existing.id));
+
+            await assertBonusMutationsWithinEligibility(
+                carRepository,
+                eligibilityForCheck,
+                plannedMutations,
+                entry.slug,
+            );
+        }
+    }
 
     if (isCreate) {
         const definition = normalizePackDefinitionInput(entry);
-        const packId = await assignPackId(packRepository, definition.id ?? null);
-        pack = await packRepository.createDefinition({
-            id: packId,
-            slug: definition.slug,
-            name: definition.name,
-            is_default: definition.is_default,
-            pack_size: definition.pack_size,
-            is_active: definition.is_active,
-            description: definition.description,
-        });
-
         const ratePatch = collectDropRatePatch(entry.drop_rates);
 
         if (!ratePatch) {
@@ -112,14 +273,36 @@ async function applyPackEntry({
         }
 
         const weights = await dropRateService.buildWeightsForCreate(ratePatch);
-        await packRepository.setDropRates(pack.id, weights);
+        const packId = await assignPackId(packRepository, definition.id ?? null);
 
-        const eligibility = entry.eligibility
-            ? normalizeEligibilityInput(entry.eligibility)
-            : { rule_type: 'all_cars', filter_json: null, explicit_car_ids: null };
+        try {
+            pack = await packRepository.createDefinition({
+                id: packId,
+                slug: definition.slug,
+                name: definition.name,
+                is_default: definition.is_default,
+                pack_size: definition.pack_size,
+                is_active: definition.is_active,
+                description: definition.description,
+            });
+            createdPackId = pack.id;
 
-        await packRepository.setEligibility(pack.id, eligibility);
-        await applyMutations(packRepository, pack.id, entry.mutations);
+            await packRepository.setDropRates(pack.id, weights);
+
+            const eligibility = effectiveEligibility ?? defaultEligibility();
+            await packRepository.setEligibility(pack.id, eligibility);
+            await applyMutations(packRepository, pack.id, entry.mutations);
+        } catch (error) {
+            if (createdPackId != null) {
+                await rollbackCreatedPack(packRepository, createdPackId, {
+                    packSlug: definition.slug,
+                    filename,
+                    reason: error.message,
+                });
+            }
+
+            throw error;
+        }
     } else {
         pack = existing;
 
@@ -130,11 +313,7 @@ async function applyPackEntry({
         }
 
         if (entry.pack_size != null) {
-            const packSize = Number(entry.pack_size);
-            if (!Number.isInteger(packSize) || packSize < 1) {
-                throw new Error(`Invalid pack_size: ${entry.pack_size}`);
-            }
-            updates.pack_size = packSize;
+            updates.pack_size = assertValidPackSize(entry.pack_size);
         }
 
         if (entry.is_active != null) {
@@ -157,8 +336,7 @@ async function applyPackEntry({
         }
 
         if (entry.eligibility) {
-            const eligibility = normalizeEligibilityInput(entry.eligibility);
-            await packRepository.setEligibility(pack.id, eligibility);
+            await packRepository.setEligibility(pack.id, effectiveEligibility);
         }
 
         await applyMutations(packRepository, pack.id, entry.mutations);
@@ -166,29 +344,44 @@ async function applyPackEntry({
 
     const after = await snapshotPack(packRepository, pack.id);
 
-    await logConfigChange(
-        configChangeRepository,
-        buildPackCatalogImportEvent({
-            actorId,
-            dropId,
-            filename,
-            packId: pack.id,
-            packSlug: pack.slug,
-            action: isCreate ? 'create' : 'patch',
-            before,
-            after,
-        }),
-    );
+    try {
+        await logConfigChange(
+            configChangeRepository,
+            buildPackCatalogImportEvent({
+                actorId,
+                dropId,
+                filename,
+                packId: pack.id,
+                packSlug: pack.slug,
+                action: isCreate ? 'create' : 'patch',
+                before,
+                after,
+            }),
+        );
+    } catch (error) {
+        if (isCreate && createdPackId != null) {
+            await rollbackCreatedPack(packRepository, createdPackId, {
+                packSlug: pack.slug,
+                filename,
+                reason: 'audit_failed_after_create',
+                cause: error.message,
+            });
+        }
+
+        throw error;
+    }
 
     return {
         packId: pack.id,
         packSlug: pack.slug,
         action: isCreate ? 'create' : 'patch',
+        isDefault: Boolean(pack.is_default),
     };
 }
 
 async function applyPackDrop({
     packRepository,
+    carRepository,
     dropRateService,
     configChangeRepository,
     actorId,
@@ -202,18 +395,50 @@ async function applyPackDrop({
     }
 
     const results = [];
+    const createdPackIds = [];
 
-    for (const entry of packs) {
-        const result = await applyPackEntry({
-            packRepository,
-            dropRateService,
-            configChangeRepository,
-            actorId,
-            dropId: drop.dropId ?? filename,
-            filename,
-            entry,
-        });
-        results.push(result);
+    try {
+        for (const entry of packs) {
+            const result = await applyPackEntry({
+                packRepository,
+                carRepository,
+                dropRateService,
+                configChangeRepository,
+                actorId,
+                dropId: drop.dropId ?? filename,
+                filename,
+                entry,
+            });
+            results.push(result);
+
+            if (result.action === 'create') {
+                createdPackIds.push(result.packId);
+            }
+        }
+    } catch (error) {
+        const rollbackFailures = [];
+
+        for (const packId of [...createdPackIds].reverse()) {
+            try {
+                await rollbackCreatedPack(packRepository, packId, {
+                    filename,
+                    reason: 'drop_aborted_after_prior_create',
+                    cause: error.message,
+                });
+            } catch (rollbackError) {
+                rollbackFailures.push(`${packId}: ${rollbackError.message}`);
+            }
+        }
+
+        if (rollbackFailures.length > 0) {
+            const err = new Error(
+                `Drop aborted (${error.message}); prior-create rollback also failed: ${rollbackFailures.join('; ')}`,
+            );
+            err.cause = error;
+            throw err;
+        }
+
+        throw error;
     }
 
     return {
@@ -226,4 +451,7 @@ module.exports = {
     applyPackDrop,
     applyPackEntry,
     snapshotPack,
+    assertBonusMutationsWithinEligibility,
+    assertGuaranteeCountWithinPackSize,
+    rollbackCreatedPack,
 };

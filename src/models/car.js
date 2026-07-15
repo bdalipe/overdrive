@@ -22,7 +22,7 @@ const NUMERIC_STATS = {
     },
     weight: {
         statusKey: 'weight_status',
-        // Imperial default (lbs). Future: respect imperial/metric setting (CLN-018).
+        // Imperial default (lbs). Future: respect imperial/metric user/guild setting (Phase 4 settings).
         formatValue: (value) => `${formatNumber(value)} lbs`,
     },
 };
@@ -172,7 +172,8 @@ function createStubCar({ id, rarity, performance = null } = {}) {
 }
 
 /**
- * Normalize a catalog drop or patch object for DB upsert.
+ * Normalize a catalog drop object for a full-row DB upsert (create or replace).
+ * Omitted scalar fields become null; omitted numeric stats become unavailable.
  * Syncs numeric value + *_status via setNumericStat; preserves explicit status-only fields.
  */
 function normalizeCarForDb(input) {
@@ -198,21 +199,104 @@ function normalizeCarForDb(input) {
     };
 
     for (const field of Object.keys(NUMERIC_STATS)) {
+        applyNumericStatFromInput(car, input, field, { defaultIfOmitted: true });
+    }
+
+    return car;
+}
+
+const MERGEABLE_SCALAR_FIELDS = [
+    'rarity',
+    'performance',
+    'performance_class',
+    'make',
+    'model',
+    'drive_type',
+    'tyre_type',
+    'body_style',
+    'country',
+    'model_year',
+    'tag',
+    'description',
+    'image_url',
+];
+
+function applyNumericStatFromInput(car, input, field, { defaultIfOmitted }) {
+    const statusKey = NUMERIC_STATS[field].statusKey;
+    const hasField = Object.prototype.hasOwnProperty.call(input, field);
+    const hasStatus = Object.prototype.hasOwnProperty.call(input, statusKey);
+
+    if (!hasField && !hasStatus) {
+        if (defaultIfOmitted) {
+            setNumericStat(car, field, null);
+        }
+        return;
+    }
+
+    const explicitStatus = hasStatus ? input[statusKey] : undefined;
+
+    if (explicitStatus === STAT_STATUS.NOT_APPLICABLE) {
+        setNumericStat(car, field, null, STAT_STATUS.NOT_APPLICABLE);
+        return;
+    }
+
+    setNumericStat(car, field, hasField ? input[field] ?? null : car[field], explicitStatus);
+}
+
+/**
+ * Merge a catalog patch onto an existing car row. Only keys present on `patch` change.
+ * Omitted fields keep existing DB values. Does not copy `created_at` onto the result.
+ *
+ * @param {object} existing - current DB row
+ * @param {object} patch - drop entry (may include `replace`, ignored here)
+ * @returns {object} full row suitable for upsert (without created_at)
+ */
+function mergeCarForDb(existing, patch) {
+    if (existing == null || existing.id == null) {
+        throw new Error('mergeCarForDb requires an existing car row with id');
+    }
+
+    const car = {
+        id: existing.id,
+        rarity: existing.rarity,
+        performance: existing.performance ?? null,
+        performance_class: existing.performance_class ?? null,
+        make: existing.make ?? null,
+        model: existing.model ?? null,
+        drive_type: existing.drive_type ?? null,
+        tyre_type: existing.tyre_type ?? null,
+        body_style: existing.body_style ?? null,
+        country: existing.country ?? null,
+        model_year: existing.model_year ?? null,
+        tag: existing.tag ?? null,
+        description: existing.description ?? null,
+        image_url: existing.image_url ?? null,
+    };
+
+    for (const field of Object.keys(NUMERIC_STATS)) {
         const statusKey = NUMERIC_STATS[field].statusKey;
-        const explicitStatus = input[statusKey];
+        car[field] = existing[field] ?? null;
+        car[statusKey] = existing[statusKey] ?? STAT_STATUS.UNAVAILABLE;
+    }
 
-        if (explicitStatus === STAT_STATUS.NOT_APPLICABLE) {
-            setNumericStat(car, field, null, STAT_STATUS.NOT_APPLICABLE);
+    for (const field of MERGEABLE_SCALAR_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(patch, field)) {
             continue;
         }
 
-        if (Object.prototype.hasOwnProperty.call(input, field)
-            || Object.prototype.hasOwnProperty.call(input, statusKey)) {
-            setNumericStat(car, field, input[field] ?? null, explicitStatus);
+        if (field === 'rarity') {
+            if (patch.rarity == null) {
+                throw new Error('mergeCarForDb: rarity cannot be null');
+            }
+            car.rarity = patch.rarity;
             continue;
         }
 
-        setNumericStat(car, field, null);
+        car[field] = patch[field] ?? null;
+    }
+
+    for (const field of Object.keys(NUMERIC_STATS)) {
+        applyNumericStatFromInput(car, patch, field, { defaultIfOmitted: false });
     }
 
     return car;
@@ -228,4 +312,5 @@ module.exports = {
     formatDisplayName,
     createStubCar,
     normalizeCarForDb,
+    mergeCarForDb,
 };
