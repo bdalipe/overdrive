@@ -99,23 +99,6 @@ function matchesFilter(car, filter) {
     return true;
 }
 
-function resolveEligibleCars(allCars, eligibility) {
-    if (!eligibility || eligibility.rule_type === 'all_cars') {
-        return allCars;
-    }
-
-    if (eligibility.rule_type === 'explicit_ids') {
-        const ids = new Set(eligibility.explicit_car_ids ?? []);
-        return allCars.filter((car) => ids.has(car.id));
-    }
-
-    if (eligibility.rule_type === 'filter') {
-        return allCars.filter((car) => matchesFilter(car, eligibility.filter_json));
-    }
-
-    return allCars;
-}
-
 function groupCarsByRarity(cars) {
     const byRarity = new Map();
 
@@ -399,7 +382,6 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
         },
         invalidateCarPool,
         clearPackConfigCache: () => cache.clear(),
-        RESERVED_DEFAULT_PACK_ID,
     };
 }
 
@@ -410,7 +392,5 @@ module.exports = {
     eligibilityCacheKey,
     matchesFilter,
     mutationResolvableInPool,
-    resolveEligibleCars,
     sortCardsByRarity,
-    RESERVED_DEFAULT_PACK_ID,
 };

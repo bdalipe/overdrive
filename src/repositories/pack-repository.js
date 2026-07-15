@@ -114,23 +114,6 @@ function createPackRepository(supabase) {
         return data ?? [];
     }
 
-    async function updatePackSize(packId, packSize) {
-        const validatedSize = assertValidPackSize(packSize);
-
-        const { data, error } = await supabase
-            .from('pack_definitions')
-            .update({ pack_size: validatedSize })
-            .eq('id', packId)
-            .select()
-            .single();
-
-        if (error) {
-            throw wrapRepositoryError('packs.updatePackSize', error);
-        }
-
-        return data;
-    }
-
     async function setEligibility(packId, { rule_type, filter_json = null, explicit_car_ids = null }) {
         if (!VALID_ELIGIBILITY_RULE_TYPES.has(rule_type)) {
             throw new Error(`Invalid eligibility rule_type: ${rule_type}`);
@@ -393,7 +376,6 @@ function createPackRepository(supabase) {
         getEligibility,
         getMutations,
         setDropRates,
-        updatePackSize,
         setEligibility,
         addMutation,
         deleteMutations,

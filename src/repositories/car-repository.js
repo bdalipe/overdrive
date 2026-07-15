@@ -61,20 +61,6 @@ function createCarRepository(supabase) {
         return data != null;
     }
 
-    async function upsert(car) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .upsert(car, { onConflict: 'id' })
-            .select()
-            .single();
-
-        if (error) {
-            throw wrapRepositoryError('cars.upsert', error);
-        }
-
-        return data;
-    }
-
     async function upsertMany(cars) {
         if (cars.length === 0) {
             return [];
@@ -87,19 +73,6 @@ function createCarRepository(supabase) {
 
         if (error) {
             throw wrapRepositoryError('cars.upsertMany', error);
-        }
-
-        return data ?? [];
-    }
-
-    async function findByRarity(rarity) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*')
-            .eq('rarity', rarity);
-
-        if (error) {
-            throw wrapRepositoryError('cars.findByRarity', error);
         }
 
         return data ?? [];
@@ -180,21 +153,6 @@ function createCarRepository(supabase) {
         }, 'cars.findEligible');
     }
 
-    async function deleteById(id) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id)
-            .select()
-            .maybeSingle();
-
-        if (error) {
-            throw wrapRepositoryError('cars.deleteById', error);
-        }
-
-        return data;
-    }
-
     async function deleteByIds(ids) {
         if (!Array.isArray(ids) || ids.length === 0) {
             return [];
@@ -232,12 +190,9 @@ function createCarRepository(supabase) {
     return {
         findById,
         exists,
-        upsert,
         upsertMany,
-        findByRarity,
         listAll,
         findEligible,
-        deleteById,
         deleteByIds,
         deleteStubs,
     };

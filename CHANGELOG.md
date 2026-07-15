@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `register-commands` fails when there are no active packs (no fake `/open-pack` `default` choice)
 - Shared pack eligibility/mutation `VALID_*` allowlists via `models/pack.js` (repository imports them)
 - `loadEnv()` exposes `maintainerDiscordUserId` (`MAINTAINER_DISCORD_USER_ID`) for catalog audit attribution
+- Pruned unused APIs: `resolveEligibleCars`; `packs.updatePackSize`; `cars.upsert` / `findByRarity` / `deleteById`; `stats.insertEvent`; `rollRarityForPack`; `buildCardEmbedFields`; pack-service re-exports of `RESERVED_DEFAULT_PACK_ID`
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
 
 ### Planned (Phase 2+)

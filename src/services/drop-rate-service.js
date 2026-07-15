@@ -202,11 +202,6 @@ function createDropRateService(packRepository) {
         return normalizeRarityWeights(rows);
     }
 
-    async function rollRarityForPack(packId, { allowedRarities } = {}) {
-        const weights = await getWeightsForPack(packId);
-        return rollRarity(weights, allowedRarities);
-    }
-
     async function buildWeightsForCreate(source) {
         return assertValidDropRates(normalizeRarityWeightsForCreate(source));
     }
@@ -218,7 +213,6 @@ function createDropRateService(packRepository) {
 
     return {
         getWeightsForPack,
-        rollRarityForPack,
         rollRarity,
         normalizeRarityWeights,
         normalizeRarityWeightsForCreate,

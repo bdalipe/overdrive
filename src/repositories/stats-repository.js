@@ -3,24 +3,6 @@ const { wrapRepositoryError } = require('./errors');
 const TABLE = 'stats_events';
 
 function createStatsRepository(supabase) {
-    async function insertEvent({ userId, eventType, payload }) {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .insert({
-                user_id: userId,
-                event_type: eventType,
-                payload: payload ?? {},
-            })
-            .select()
-            .single();
-
-        if (error) {
-            throw wrapRepositoryError('stats.insertEvent', error);
-        }
-
-        return data;
-    }
-
     async function insertEvents(events) {
         if (events.length === 0) {
             return [];
@@ -42,7 +24,6 @@ function createStatsRepository(supabase) {
     }
 
     return {
-        insertEvent,
         insertEvents,
     };
 }
