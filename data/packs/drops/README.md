@@ -105,7 +105,7 @@ When `yearMin` and/or `yearMax` is set, cars with a null `model_year` are **excl
 |-------|-------|
 | `replace` | `true` = delete all mutations for the pack, then apply `add` |
 | `remove_ids` | Array of mutation `id` values to delete (patch only, when `replace` is false) |
-| `add` | Array of mutation objects to insert |
+| `add` | Array of mutation objects to insert (applied in one batch insert) |
 
 Each mutation entry:
 

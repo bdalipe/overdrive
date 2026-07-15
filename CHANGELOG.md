@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-### Changed (post-M1 harden-hygiene → target `0.2.3`)
+### Changed (post-M1 harden-hygiene + catalog-patch → `0.2.3`)
 - Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
 - Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
 - Pack config invalidate clears `pack:default` only when the target pack is the default
@@ -21,7 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Catalog import/delete audit (`config_change_events`) fails closed if the audit insert fails; `/open-pack` `stats_events` inserts remain best-effort
 - Docs polish: test-pack description uses `/open-pack`; embeds/README renderers wording matches `/admin debug-latency`; car weight comment points at Phase 4 settings
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
-- Docs: catalog + Phase 2–4 planned follow-ups expanded (import/audit edge cases, reveal ownership, pack module splits, open-path guarantee polish); maintainer drops READMEs note known limitations
 - `supabase/config.toml` `[db.seed]` disabled (no missing `seed.sql` on `db reset`; catalog via npm scripts)
 - Pack `updateDefinition` accepts explicit `description: null` so import patches can clear the field
 - Pack create: roll back the new pack if required audit fails; `rollbackCreatedPack` throws on rollback delete failure (multi-pack abort still attempts all prior creates)
@@ -30,8 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Car catalog import: merge patches for existing ids (omitted fields kept); `replace: true` for full-row wipe; `mergeCarForDb` + `cars.findByIds`
 - Batch serial-id allocation: `generateSerialIds` / `claimSerialId` against a taken set; `cars.listIds`; used by `import-cars` and `seed-stubs`
 - Pack import: batch `addMutations` for `mutations.add` (one insert instead of N+1)
+- Docs: catalog & pack-import follow-ups marked complete; Phase 2+ Planned only (no remaining catalog Planned items)
 
-### Planned (post-hygiene)
+### Planned (post–`0.2.3`)
 
 **Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)

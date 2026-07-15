@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.2.2` (on `develop`; this branch targets `0.2.3` on merge with `version:patch`)
+**Version:** `0.2.3` (`feature/catalog-patch`; merge to `develop` with `version:patch` only if CI should bump past `0.2.3`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes (themed packs via `import-packs`; no Discord pack-admin UX); post-M1 harden through hygiene (target `0.2.3`) | **Complete** (`0.2.0`+; this branch → `0.2.3` on merge with `version:patch`) |
+| **1** — Pack simulator | M1 + post-M1 harden/hygiene + catalog/pack-import follow-ups (merge/patch cars, batch serials & mutations, delete/audit guards) | **Complete** (`0.2.0`–`0.2.3`) |
 | **2** — Card composition | M2: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **3** — Performance engine | M3: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
 | **4** — Collection & profile | M4: garage, wishlist, profile, view-card, **Wispbyte prod deploy** | Not started |
@@ -313,7 +313,7 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (this branch): `package.json` = `0.2.2`, CHANGELOG target `0.2.3`, label `version:patch`.
+Example (this branch): `package.json` = `0.2.3`, CHANGELOG `[Unreleased]` lands as `0.2.3` (or next patch if CI bumps). Label: `version:patch` only when a further bump is desired.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -366,7 +366,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
 
-### Catalog & pack-import follow-ups (post–Phase 1)
+### Catalog & pack-import follow-ups (post–Phase 1) ✅
 - [x] True partial-patch car imports (merge on existing id; `replace: true` for full-row wipe)
 - [x] Faster batch serial-id allocation for large catalog / stub drops (`generateSerialIds` + `cars.listIds`)
 - [x] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
