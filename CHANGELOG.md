@@ -19,26 +19,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Year-bounded pack filters exclude cars with null `model_year` (`matchesFilter` + `findEligible`)
 - Pack bonus mutations (`chance_percent` &lt; 100) each roll independently per draw; multiple successes pick one winner at random for that slot
 - Catalog import/delete audit (`config_change_events`) fails closed if the audit insert fails; `/open-pack` `stats_events` inserts remain best-effort
+- Docs polish: test-pack description uses `/open-pack`; embeds/README renderers wording matches `/admin debug-latency`; car weight comment points at Phase 4 settings
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
+- Docs: catalog + Phase 2–4 planned follow-ups expanded (import/audit edge cases, reveal ownership, pack module splits, open-path guarantee polish); maintainer drops READMEs note known limitations
 
-### Planned (Phase 2+)
+### Planned (post-hygiene)
+
+**Catalog / pack-import follow-up**
+- Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
+- Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
+- Pack create: roll back the new pack if the required `config_change_events` audit fails (avoid stuck slugs); surface rollback failures clearly
+- Pack patch: allow clearing `description` to null when the key is present
+- Car delete preflight when rows are referenced by pack mutations / eligibility ids (CASCADE can silently drop mutations today)
+- Batch pack-mutation inserts for large `mutations.add` arrays
+- Delete scripts: clearer unaudited-delete recovery (writes can succeed before a fail-closed audit error)
+- Local Supabase: add `supabase/seed.sql` or disable `[db.seed]` so `db reset` does not expect a missing file
+
+**Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
 - Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
 - Bound concurrent image reachability probes when validating non-trusted URLs
-- Keep pack eligibility filter logic aligned between in-memory and SQL paths
-- Phase 3: Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
-- Phase 4: Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
-- Phase 5+: Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
+- Shared pack eligibility filter logic (SQL + in-memory + import checks); normalize eligibility cache keys
+- `/open-pack` reveal ownership: enforce opener via session `userId` (do not fail-open when message interaction metadata is missing)
+- Split long pack modules when that work lands (shared filters; thinner `pack-import` / `pack-service` / `pack-repository`); drop unused pack-service exports
+
+**Phase 3 — performance engine**
+- Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
+- Open-path polish: batch guarantee car lookups; reuse eligibility cache for filter guarantees
+
+**Phase 4 — collection & web**
+- Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
+
+**Phase 5+**
+- Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
 
 ### Deferred
-- Metrics start/complete for modals/autocomplete when those interaction types are added
+- Metrics: complete/error pairing on interaction failure paths; start/complete for modals/autocomplete when those types are added
+- `/admin debug-latency` sessions keyed by message id (like `/open-pack`) when convenient
+- Page `listActive` packs if catalogs approach PostgREST `max_rows` (Discord still caps 25 choices)
 - Imperial/metric display toggle
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
 - Phase 2/3 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
-- Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
-- Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 
 ---
 
