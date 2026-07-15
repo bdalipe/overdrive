@@ -22,6 +22,12 @@ async function registerCommands() {
     const repositories = createRepositories(supabase);
     const activePacks = await repositories.packs.listActive();
 
+    if (!Array.isArray(activePacks) || activePacks.length === 0) {
+        throw new Error(
+            'No active packs found. Seed/import at least one active pack before registering commands.',
+        );
+    }
+
     openPack.warnIfActivePacksExceedChoiceLimit(activePacks, 'register-commands');
     const openPackChoices = openPack.buildPackChoices(activePacks);
 

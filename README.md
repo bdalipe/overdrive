@@ -66,6 +66,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `/open-pack` reveal sessions keyed by message id | Done |
 | Pack create mid-failure rollback (`import-packs`) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
+| `register-commands` fails closed with zero active packs | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
 
@@ -359,6 +360,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `/open-pack` reveal sessions keyed by message id (15 min TTL)
 - [x] Pack create mid-failure rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
+- [x] `register-commands` fails when there are no active packs (no fake `default` choice)
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
 
@@ -411,7 +413,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`); in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent
 - **Stats events** — each successful `/open-pack` appends `pack_open` plus one `pull` per card to `stats_events` (`pack-stats-events.js`); `packSize` matches configured `pack_size` (opens that cannot fill that many cards fail before stats). Insert failures are logged and do not block the reveal
 - **Performance in schema** nullable until Phase 3 calculator fills ratings
-- **Multi-pack** — default + themed packs via `import-packs`; `/open-pack` required `pack` choice list from active packs (**Discord max 25**; extras are omitted — `import-packs` / `register-commands` log `open_pack_choices_truncated`; re-run `register-commands` after pack imports)
+- **Multi-pack** — default + themed packs via `import-packs`; `/open-pack` required `pack` choice list from active packs (**Discord max 25**; extras are omitted — `import-packs` / `register-commands` log `open_pack_choices_truncated`; re-run `register-commands` after pack imports). **`register-commands` fails** if there are no active packs (does not invent a fake `default` choice).
 - **Future web portability** — domain logic isolated from Discord wiring
 
 ### Catalog import (maintainers)

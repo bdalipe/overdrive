@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
 - Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
 - Pack config invalidate clears `pack:default` only when the target pack is the default
+- `register-commands` fails when there are no active packs (no fake `/open-pack` `default` choice)
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
 
 ### Planned (Phase 2+)
