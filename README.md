@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.2.2` (on `develop`; this branch targets `0.2.3` on merge with `version:patch`)
+**Version:** `0.2.3` (`feature/catalog-patch`; merge to `develop` with `version:patch` only if CI should bump past `0.2.3`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -15,7 +15,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Phase | Milestone | Status |
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
-| **1** — Pack simulator | M1: catalog drops, multi-pack opens, eligibility, deletes (themed packs via `import-packs`; no Discord pack-admin UX); post-M1 harden through hygiene (target `0.2.3`) | **Complete** (`0.2.0`+; this branch → `0.2.3` on merge with `version:patch`) |
+| **1** — Pack simulator | M1 + post-M1 harden/hygiene + catalog/pack-import follow-ups (merge/patch cars, batch serials & mutations, delete/audit guards) | **Complete** (`0.2.0`–`0.2.3`) |
 | **2** — Card composition | M2: modular card image composer, per-component toggles, pack reveal images | Not started |
 | **3** — Performance engine | M3: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
 | **4** — Collection & profile | M4: garage, wishlist, profile, view-card, **Wispbyte prod deploy** | Not started |
@@ -64,7 +64,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | `/admin clear-cache` (live bot pack/car/eligibility/image cache) | Done |
 | `pack_size` max 50 (app + DB CHECK) + default-pack delete trigger (`007`) | Done |
 | `/open-pack` reveal sessions keyed by message id | Done |
-| Pack create mid-failure rollback (`import-packs`) | Done |
+| Pack create mid-failure / create+audit rollback (`import-packs`) | Done |
 | `/open-pack` pack picker (choice list of active packs) | Done |
 | `register-commands` fails closed with zero active packs | Done |
 | Car/pack delete APIs + maintainer scripts | Done |
@@ -143,7 +143,7 @@ npm run import-cars             # apply pending car drops from data/catalog/drop
 npm run import-packs            # apply pending pack drops from data/packs/drops/
 ```
 
-Prefer the npm scripts above for catalog data. If you use `supabase db reset`, note that `config.toml` may reference `[db.seed]` / `seed.sql` — add a minimal `supabase/seed.sql` or disable seed until that file exists, or reset can fail looking for it.
+Prefer the npm scripts above for catalog data. `supabase/config.toml` has `[db.seed]` **disabled** so `db reset` does not require a `seed.sql`; default pack rows come from migrations. Re-enable seed only when you add intentional SQL seed files.
 
 See `data/catalog/drops/README.md` and `data/packs/drops/README.md` for drop JSON format and manifest workflow.
 
@@ -313,7 +313,7 @@ The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`packa
 4. Sync this README: **Version** line, development status, roadmap checkboxes, and any setup/structure/command changes.
 5. Apply one PR label: `version:patch` | `version:minor` | `version:major`.
 
-Example (this branch): `package.json` = `0.2.2`, CHANGELOG target `0.2.3`, label `version:patch`.
+Example (this branch): `package.json` = `0.2.3`, CHANGELOG `[Unreleased]` lands as `0.2.3` (or next patch if CI bumps). Label: `version:patch` only when a further bump is desired.
 
 After merge, if the README **Version** line still shows the pre-bump value, update it on `develop` to match the new tag.
 
@@ -360,20 +360,21 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `/admin clear-cache` + catalog script refresh hints (live bot cache is separate from script invalidate)
 - [x] `pack_size` 1–50 + default-pack DB delete guard (`007_pack_integrity_guards.sql`)
 - [x] `/open-pack` reveal sessions keyed by message id (15 min TTL)
-- [x] Pack create mid-failure rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails
+- [x] Pack create mid-failure / create+audit rollback (CASCADE); multi-pack drop rolls back prior creates if a later entry fails; rollback delete failures thrown
 - [x] `/open-pack` pack picker (required choice dropdown of active packs; re-register after `import-packs`)
 - [x] `register-commands` fails when there are no active packs (no fake `default` choice)
 - [x] `findEligible` query path for filtered / explicit_ids packs
 - [x] Car/pack delete APIs + `delete-cars` / `delete-packs` / `clear-stubs`
 
-### Catalog & pack-import follow-ups (post–Phase 1)
-- [ ] True partial-patch car imports (today’s full-row upsert nulls omitted fields)
-- [ ] Faster batch serial-id allocation for large catalog / stub drops
-- [ ] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
-- [ ] Pack patch can clear `description` to null when the key is present
-- [ ] Car-delete preflight for packs that reference mutations / explicit ids (CASCADE awareness)
-- [ ] Batch pack-mutation inserts; clearer delete + unaudited recovery messaging
-- [ ] Local `supabase/seed.sql` (or disable seed) so `db reset` matches `config.toml`
+### Catalog & pack-import follow-ups (post–Phase 1) ✅
+- [x] True partial-patch car imports (merge on existing id; `replace: true` for full-row wipe)
+- [x] Faster batch serial-id allocation for large catalog / stub drops (`generateSerialIds` + `cars.listIds`)
+- [x] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
+- [x] Pack patch can clear `description` to null when the key is present
+- [x] Car-delete preflight for packs that reference mutations / explicit ids (refuse unless `--force`)
+- [x] Clearer delete + unaudited recovery messaging (`deleted_but_unaudited`)
+- [x] Batch pack-mutation inserts for large `mutations.add` arrays
+- [x] Local `[db.seed]` disabled (no `seed.sql` required; use npm catalog scripts)
 
 ### Phase 2 — Modular card composition
 - [ ] Per-component renderers (name, rarity, stats, optional performance block)
@@ -413,15 +414,15 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**). **`filter` / `explicit_ids` pools** cached via `findEligible` keyed by eligibility hash (**60s TTL**); both car-pool styles clear on `invalidateCarPool` / `/admin clear-cache`. Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers. Pack open / import / repository modules are already the longest files; when shared eligibility filters or the next pack-import hardening lands, prefer extracting a shared filter helper and splitting create/patch/mutate (and repository facets) rather than growing those files further
 - **No dev-generated car content**
-- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); regenerate on collision
+- **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); collision checks via DB `exists` (packs) or an in-memory taken set after `cars.listIds` for catalog batch allocate (`generateSerialIds`)
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phase 1 interim):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 2 compose and future commands.
 - **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise). On each normal draw slot, every eligible bonus rolls independently; if several succeed, one is chosen at random for that slot
 - **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
 - **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
-- **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write are not auto-reverted. **Known follow-up:** if create succeeds but the required audit insert fails, the pack can remain (slug blocked) until manual cleanup or a future create+audit rollback
+- **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; create+audit failure also rolls back the new pack; rollback delete failures are thrown. Earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write or on audit are not auto-reverted
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
-- **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Local `supabase db reset` seed path (`config.toml` `[db.seed]`) is a follow-up if `seed.sql` is not present yet
+- **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Car drops: **merge** when `id` exists (omitted fields kept); **`replace: true`** for full-row wipe; new ids use full-row create. Local `supabase db reset` does not run SQL seeds (`[db.seed]` disabled); use npm catalog scripts after migrations
 - **Card composition** — car photo base + separate overlay components; each toggleable
 - **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (title, optional image, summary); `card-display.js` for stat formatting; Phase 2 `renderers/card/` for composed images
 - **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`); in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent. **Follow-up:** enforce opener via session user id (avoid fail-open if Discord message interaction metadata is missing)
@@ -440,7 +441,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 3. Run `npm run import-cars` or `npm run import-packs`.
 4. Apply migration `007_pack_integrity_guards.sql` (and prior migrations through `006`) before first import on a fresh DB.
 
-Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). Catalog or pack writes that already succeeded are not auto-reverted; create+audit rollback for packs and clearer delete recovery are follow-ups. Fix the DB/audit issue and re-run or clean up orphans as needed.
+Car and pack imports/deletes append audit rows to `config_change_events` (**required** — if the audit insert fails, the script exits non-zero after logging). **Pack creates** that fail audit are rolled back (slug freed). Car upserts and pack **patches** that already succeeded are not auto-reverted. **Deletes** that succeed then fail audit log `deleted_but_unaudited` — data is already gone; fix audit access and do not re-delete the same ids/slugs.
 
 Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
@@ -448,11 +449,12 @@ Use `manifest.{BOT_ENV}.json` if dev and prod catalogs diverge.
 
 ```bash
 npm run delete-cars -- --ids 123456,234567
+npm run delete-cars -- --ids 123456 --force   # if pack mutations / explicit_ids reference the car
 npm run clear-stubs                 # make/model both null (seed-stubs rows)
 npm run delete-packs -- --slugs test-pack
 ```
 
-Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. Deletes require a successful `config_change_events` insert (same fail-closed rule as imports). If audit fails after a delete, the row may already be gone without an audit trail — see catalog/pack drops READMEs.
+Default pack cannot be deleted (app + DB trigger). After deleting packs, re-run `npm run register-commands` so `/open-pack` choices update. `delete-cars` refuses pack-referenced cars unless `--force` (mutations CASCADE; explicit ids may keep dead entries). Deletes require a successful `config_change_events` insert; if audit fails after delete, see `deleted_but_unaudited` in logs / catalog READMEs — do not re-delete.
 
 ---
 

@@ -140,7 +140,7 @@ function createPackRepository(supabase) {
         return data;
     }
 
-    async function addMutation(
+    function buildMutationInsertRow(
         packId,
         { mutation_type, target_car_id = null, filter_json = null, chance_percent, rarity_gate = null },
     ) {
@@ -153,24 +153,38 @@ function createPackRepository(supabase) {
             throw new Error(`Invalid chance_percent: ${chance_percent}`);
         }
 
-        const { data, error } = await supabase
-            .from('pack_mutations')
-            .insert({
-                pack_id: packId,
-                mutation_type,
-                target_car_id,
-                filter_json,
-                chance_percent: chance,
-                rarity_gate,
-            })
-            .select()
-            .single();
+        return {
+            pack_id: packId,
+            mutation_type,
+            target_car_id,
+            filter_json,
+            chance_percent: chance,
+            rarity_gate,
+        };
+    }
 
-        if (error) {
-            throw wrapRepositoryError('packs.addMutation', error);
+    async function addMutations(packId, mutations) {
+        if (!Array.isArray(mutations) || mutations.length === 0) {
+            return [];
         }
 
-        return data;
+        const rows = mutations.map((mutation) => buildMutationInsertRow(packId, mutation));
+
+        const { data, error } = await supabase
+            .from('pack_mutations')
+            .insert(rows)
+            .select();
+
+        if (error) {
+            throw wrapRepositoryError('packs.addMutations', error);
+        }
+
+        return data ?? [];
+    }
+
+    async function addMutation(packId, mutation) {
+        const [row] = await addMutations(packId, [mutation]);
+        return row;
     }
 
     async function deleteMutations(packId, mutationIds) {
@@ -260,8 +274,8 @@ function createPackRepository(supabase) {
             allowed.is_active = fields.is_active;
         }
 
-        if (fields.description != null) {
-            allowed.description = fields.description;
+        if (Object.prototype.hasOwnProperty.call(fields, 'description')) {
+            allowed.description = fields.description ?? null;
         }
 
         if (Object.keys(allowed).length === 0) {
@@ -368,6 +382,73 @@ function createPackRepository(supabase) {
         return deleteById(existing.id);
     }
 
+    async function findCarPackReferences(carIds) {
+        const ids = [...new Set((carIds ?? []).map((id) => Number(id)).filter((id) => Number.isInteger(id)))];
+
+        if (ids.length === 0) {
+            return { mutations: [], explicitEligibility: [] };
+        }
+
+        const { data: mutations, error: mutError } = await supabase
+            .from('pack_mutations')
+            .select('id, pack_id, target_car_id, chance_percent, mutation_type')
+            .in('target_car_id', ids);
+
+        if (mutError) {
+            throw wrapRepositoryError('packs.findCarPackReferences.mutations', mutError);
+        }
+
+        const { data: eligibility, error: eligError } = await supabase
+            .from('pack_eligibility')
+            .select('pack_id, explicit_car_ids')
+            .eq('rule_type', 'explicit_ids')
+            .overlaps('explicit_car_ids', ids);
+
+        if (eligError) {
+            throw wrapRepositoryError('packs.findCarPackReferences.eligibility', eligError);
+        }
+
+        const packIdSet = new Set([
+            ...(mutations ?? []).map((row) => row.pack_id),
+            ...(eligibility ?? []).map((row) => row.pack_id),
+        ]);
+        const packIds = [...packIdSet];
+        const slugById = new Map();
+
+        if (packIds.length > 0) {
+            const { data: packs, error: packError } = await supabase
+                .from('pack_definitions')
+                .select('id, slug')
+                .in('id', packIds);
+
+            if (packError) {
+                throw wrapRepositoryError('packs.findCarPackReferences.packs', packError);
+            }
+
+            for (const pack of packs ?? []) {
+                slugById.set(pack.id, pack.slug);
+            }
+        }
+
+        const idSet = new Set(ids);
+
+        return {
+            mutations: (mutations ?? []).map((row) => ({
+                mutationId: row.id,
+                packId: row.pack_id,
+                packSlug: slugById.get(row.pack_id) ?? String(row.pack_id),
+                targetCarId: row.target_car_id,
+                chancePercent: row.chance_percent,
+                mutationType: row.mutation_type,
+            })),
+            explicitEligibility: (eligibility ?? []).map((row) => ({
+                packId: row.pack_id,
+                packSlug: slugById.get(row.pack_id) ?? String(row.pack_id),
+                matchedCarIds: (row.explicit_car_ids ?? []).filter((carId) => idSet.has(carId)),
+            })),
+        };
+    }
+
     return {
         findById,
         findBySlug,
@@ -375,9 +456,11 @@ function createPackRepository(supabase) {
         getDropRates,
         getEligibility,
         getMutations,
+        findCarPackReferences,
         setDropRates,
         setEligibility,
         addMutation,
+        addMutations,
         deleteMutations,
         deleteAllMutations,
         createDefinition,

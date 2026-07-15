@@ -47,6 +47,30 @@ function createCarRepository(supabase) {
         return data;
     }
 
+    /**
+     * @param {number[]} ids
+     * @returns {Promise<Map<number, object>>}
+     */
+    async function findByIds(ids) {
+        const unique = [...new Set((ids ?? []).map((id) => Number(id)).filter((id) => Number.isInteger(id)))];
+        const byId = new Map();
+
+        if (unique.length === 0) {
+            return byId;
+        }
+
+        const rows = await fetchAllRows(
+            () => supabase.from(TABLE).select('*').in('id', unique).order('id', { ascending: true }),
+            'cars.findByIds',
+        );
+
+        for (const row of rows) {
+            byId.set(row.id, row);
+        }
+
+        return byId;
+    }
+
     async function exists(id) {
         const { data, error } = await supabase
             .from(TABLE)
@@ -83,6 +107,19 @@ function createCarRepository(supabase) {
             () => supabase.from(TABLE).select('*').order('id', { ascending: true }),
             'cars.listAll',
         );
+    }
+
+    /**
+     * All car ids (paged). Used for batch serial allocation.
+     * @returns {Promise<number[]>}
+     */
+    async function listIds() {
+        const rows = await fetchAllRows(
+            () => supabase.from(TABLE).select('id').order('id', { ascending: true }),
+            'cars.listIds',
+        );
+
+        return rows.map((row) => row.id);
     }
 
     /**
@@ -188,9 +225,11 @@ function createCarRepository(supabase) {
 
     return {
         findById,
+        findByIds,
         exists,
         upsertMany,
         listAll,
+        listIds,
         findEligible,
         deleteByIds,
         deleteStubs,

@@ -3,7 +3,7 @@ const { loadEnv } = require('../src/shared/config');
 const { createSupabaseClient } = require('../src/shared/supabase');
 const { createRepositories } = require('../src/repositories');
 const { createServices } = require('../src/services');
-const { generateSerialId } = require('../src/shared/generate-serial-id');
+const { generateSerialIds } = require('../src/shared/generate-serial-id');
 const { createStubCar } = require('../src/models/car');
 const logger = require('../src/shared/logger');
 const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
@@ -34,22 +34,9 @@ async function main() {
     const services = createServices(repositories);
     const { cars: carRepo } = repositories;
 
-    const stubs = [];
-
-    for (let i = 0; i < count; i += 1) {
-        const id = await generateSerialId({
-            exists: async (candidate) => {
-                if (stubs.some((stub) => stub.id === candidate)) {
-                    return true;
-                }
-
-                return carRepo.exists(candidate);
-            },
-        });
-
-        const rarity = randomInt(1, 7);
-        stubs.push(createStubCar({ id, rarity }));
-    }
+    const taken = new Set(await carRepo.listIds());
+    const ids = generateSerialIds(count, { taken });
+    const stubs = ids.map((id) => createStubCar({ id, rarity: randomInt(1, 7) }));
 
     await carRepo.upsertMany(stubs);
 

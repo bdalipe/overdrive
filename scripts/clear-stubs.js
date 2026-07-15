@@ -4,11 +4,11 @@ const { createRepositories } = require('../src/repositories');
 const { createServices } = require('../src/services');
 const {
     buildCarCatalogDeleteEvent,
-    logConfigChange,
     resolveMaintainerActorId,
 } = require('../src/services/config-change-events');
 const logger = require('../src/shared/logger');
 const { logBotCacheRefreshHint } = require('./lib/bot-cache-hint');
+const { logConfigChangeAfterDelete } = require('./lib/audit-after-delete');
 
 /**
  * Deletes sparse stub cars (make IS NULL AND model IS NULL) from seed-stubs.
@@ -26,7 +26,7 @@ async function main() {
     services.packs.invalidateCarPool();
     logBotCacheRefreshHint(logger, { scope: 'clear-stubs', affected: 'car-pool' });
 
-    await logConfigChange(
+    await logConfigChangeAfterDelete(
         repositories.configChanges,
         buildCarCatalogDeleteEvent({
             actorId,
@@ -34,6 +34,11 @@ async function main() {
             carIds: deletedIds,
             reason: 'clear-stubs',
         }),
+        {
+            summary: `stubs ${deletedIds.join(',') || '(none)'}`,
+            entityType: 'car',
+            deletedIds,
+        },
     );
 
     logger.info('clear_stubs_complete', {
