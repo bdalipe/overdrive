@@ -88,12 +88,18 @@ function matchesFilter(car, filter) {
         }
     }
 
-    if (filter.yearMin != null && car.model_year != null && car.model_year < filter.yearMin) {
-        return false;
-    }
+    if (filter.yearMin != null || filter.yearMax != null) {
+        if (car.model_year == null) {
+            return false;
+        }
 
-    if (filter.yearMax != null && car.model_year != null && car.model_year > filter.yearMax) {
-        return false;
+        if (filter.yearMin != null && car.model_year < filter.yearMin) {
+            return false;
+        }
+
+        if (filter.yearMax != null && car.model_year > filter.yearMax) {
+            return false;
+        }
     }
 
     return true;

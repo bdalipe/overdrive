@@ -95,6 +95,8 @@ Keys `"1"`–`"6"` map to rarity tier weight (percent). **Create:** omitted tier
 
 **Filter keys** (AND logic): `rarities`, `countries`, `bodyStyles`, `tags`, `yearMin`, `yearMax`.
 
+When `yearMin` and/or `yearMax` is set, cars with a null `model_year` are **excluded** (same rule in SQL `findEligible` and in-memory `matchesFilter`).
+
 **Patch:** omit `eligibility` to leave unchanged. **Create:** omit → `all_cars`.
 
 ### `pack_mutations` (`mutations` object)
