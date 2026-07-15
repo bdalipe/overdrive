@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Docs polish: test-pack description uses `/open-pack`; embeds/README renderers wording matches `/admin debug-latency`; car weight comment points at Phase 4 settings
 - Roadmap renumber: Discord pack-admin phase collapsed into Phase 1; card composition → Phase 2 (`0.3.0`), performance → Phase 3 (`0.4.0`), collection + Wispbyte → Phase 4 (`0.5.0`); Gauntlet noted under future live-race phase
 - Docs: catalog + Phase 2–4 planned follow-ups expanded (import/audit edge cases, reveal ownership, pack module splits, open-path guarantee polish); maintainer drops READMEs note known limitations
+- `supabase/config.toml` `[db.seed]` disabled (no missing `seed.sql` on `db reset`; catalog via npm scripts)
+- Pack `updateDefinition` accepts explicit `description: null` so import patches can clear the field
 
 ### Planned (post-hygiene)
 
@@ -29,11 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Car catalog true partial-patch imports (full-row upsert replaces omitted fields today)
 - Faster batch serial-id allocation for large `import-cars` / `seed-stubs` drops
 - Pack create: roll back the new pack if the required `config_change_events` audit fails (avoid stuck slugs); surface rollback failures clearly
-- Pack patch: allow clearing `description` to null when the key is present
 - Car delete preflight when rows are referenced by pack mutations / eligibility ids (CASCADE can silently drop mutations today)
 - Batch pack-mutation inserts for large `mutations.add` arrays
 - Delete scripts: clearer unaudited-delete recovery (writes can succeed before a fail-closed audit error)
-- Local Supabase: add `supabase/seed.sql` or disable `[db.seed]` so `db reset` does not expect a missing file
 
 **Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)

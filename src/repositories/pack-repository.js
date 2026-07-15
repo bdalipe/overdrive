@@ -260,8 +260,8 @@ function createPackRepository(supabase) {
             allowed.is_active = fields.is_active;
         }
 
-        if (fields.description != null) {
-            allowed.description = fields.description;
+        if (Object.prototype.hasOwnProperty.call(fields, 'description')) {
+            allowed.description = fields.description ?? null;
         }
 
         if (Object.keys(allowed).length === 0) {

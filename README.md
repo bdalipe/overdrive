@@ -143,7 +143,7 @@ npm run import-cars             # apply pending car drops from data/catalog/drop
 npm run import-packs            # apply pending pack drops from data/packs/drops/
 ```
 
-Prefer the npm scripts above for catalog data. If you use `supabase db reset`, note that `config.toml` may reference `[db.seed]` / `seed.sql` — add a minimal `supabase/seed.sql` or disable seed until that file exists, or reset can fail looking for it.
+Prefer the npm scripts above for catalog data. `supabase/config.toml` has `[db.seed]` **disabled** so `db reset` does not require a `seed.sql`; default pack rows come from migrations. Re-enable seed only when you add intentional SQL seed files.
 
 See `data/catalog/drops/README.md` and `data/packs/drops/README.md` for drop JSON format and manifest workflow.
 
@@ -370,10 +370,10 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [ ] True partial-patch car imports (today’s full-row upsert nulls omitted fields)
 - [ ] Faster batch serial-id allocation for large catalog / stub drops
 - [ ] Pack create rolls back if required audit insert fails; rollback errors surfacing clearly
-- [ ] Pack patch can clear `description` to null when the key is present
+- [x] Pack patch can clear `description` to null when the key is present
 - [ ] Car-delete preflight for packs that reference mutations / explicit ids (CASCADE awareness)
 - [ ] Batch pack-mutation inserts; clearer delete + unaudited recovery messaging
-- [ ] Local `supabase/seed.sql` (or disable seed) so `db reset` matches `config.toml`
+- [x] Local `[db.seed]` disabled (no `seed.sql` required; use npm catalog scripts)
 
 ### Phase 2 — Modular card composition
 - [ ] Per-component renderers (name, rarity, stats, optional performance block)
@@ -421,7 +421,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
 - **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write are not auto-reverted. **Known follow-up:** if create succeeds but the required audit insert fails, the pack can remain (slug blocked) until manual cleanup or a future create+audit rollback
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
-- **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Local `supabase db reset` seed path (`config.toml` `[db.seed]`) is a follow-up if `seed.sql` is not present yet
+- **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Local `supabase db reset` does not run SQL seeds (`[db.seed]` disabled); use npm catalog scripts after migrations
 - **Card composition** — car photo base + separate overlay components; each toggleable
 - **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (title, optional image, summary); `card-display.js` for stat formatting; Phase 2 `renderers/card/` for composed images
 - **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`); in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent. **Follow-up:** enforce opener via session user id (avoid fail-open if Discord message interaction metadata is missing)

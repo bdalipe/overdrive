@@ -78,7 +78,7 @@ Each file is a JSON object:
 | `is_default` | No | Default `false`. Only one default pack allowed |
 | `pack_size` | No | Cards per open; default `5`; **1–50** for now (DB CHECK + `import-packs` / open). Cap may rise when multi-embed pack opens land. Must be ≥ number of `chance_percent: 100` mutations after the drop |
 | `is_active` | No | Default `true`. Active packs appear on `/open-pack` (Discord max **25** choices; `import-packs` / `register-commands` warn if more are active) |
-| `description` | No | Optional text. **Patch:** include `"description": null` to clear — **not yet supported** in the repository layer (key is ignored when null); follow-up pending |
+| `description` | No | Optional text. **Patch:** set `"description": null` to clear |
 | `created_at` | — | DB-managed; do not set in drops |
 
 ### `pack_drop_rates` (`drop_rates` object)

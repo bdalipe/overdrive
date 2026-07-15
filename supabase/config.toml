@@ -64,8 +64,10 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# If enabled, seeds the database after migrations during a db reset.
-enabled = true
+# Disabled until we intentionally add SQL seeds. Prefer npm catalog scripts
+# (`seed-stubs`, `import-cars`, `import-packs`) after migrations. Re-enable and
+# point sql_paths at real seed files when needed.
+enabled = false
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 sql_paths = ["./seed.sql"]
