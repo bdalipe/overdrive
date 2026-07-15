@@ -373,7 +373,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Pack patch can clear `description` to null when the key is present
 - [x] Car-delete preflight for packs that reference mutations / explicit ids (refuse unless `--force`)
 - [x] Clearer delete + unaudited recovery messaging (`deleted_but_unaudited`)
-- [ ] Batch pack-mutation inserts for large `mutations.add` arrays
+- [x] Batch pack-mutation inserts for large `mutations.add` arrays
 - [x] Local `[db.seed]` disabled (no `seed.sql` required; use npm catalog scripts)
 
 ### Phase 2 — Modular card composition

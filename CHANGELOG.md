@@ -29,11 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `delete-cars` refuses cars referenced by pack mutations / `explicit_car_ids` unless `--force`
 - Car catalog import: merge patches for existing ids (omitted fields kept); `replace: true` for full-row wipe; `mergeCarForDb` + `cars.findByIds`
 - Batch serial-id allocation: `generateSerialIds` / `claimSerialId` against a taken set; `cars.listIds`; used by `import-cars` and `seed-stubs`
+- Pack import: batch `addMutations` for `mutations.add` (one insert instead of N+1)
 
 ### Planned (post-hygiene)
-
-**Catalog / pack-import follow-up**
-- Batch pack-mutation inserts for large `mutations.add` arrays
 
 **Phase 2 — card composition / reveal / filters**
 - Modular card image composer (per-component toggles; performance block off by default)

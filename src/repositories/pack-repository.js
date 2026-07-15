@@ -140,7 +140,7 @@ function createPackRepository(supabase) {
         return data;
     }
 
-    async function addMutation(
+    function buildMutationInsertRow(
         packId,
         { mutation_type, target_car_id = null, filter_json = null, chance_percent, rarity_gate = null },
     ) {
@@ -153,24 +153,38 @@ function createPackRepository(supabase) {
             throw new Error(`Invalid chance_percent: ${chance_percent}`);
         }
 
-        const { data, error } = await supabase
-            .from('pack_mutations')
-            .insert({
-                pack_id: packId,
-                mutation_type,
-                target_car_id,
-                filter_json,
-                chance_percent: chance,
-                rarity_gate,
-            })
-            .select()
-            .single();
+        return {
+            pack_id: packId,
+            mutation_type,
+            target_car_id,
+            filter_json,
+            chance_percent: chance,
+            rarity_gate,
+        };
+    }
 
-        if (error) {
-            throw wrapRepositoryError('packs.addMutation', error);
+    async function addMutations(packId, mutations) {
+        if (!Array.isArray(mutations) || mutations.length === 0) {
+            return [];
         }
 
-        return data;
+        const rows = mutations.map((mutation) => buildMutationInsertRow(packId, mutation));
+
+        const { data, error } = await supabase
+            .from('pack_mutations')
+            .insert(rows)
+            .select();
+
+        if (error) {
+            throw wrapRepositoryError('packs.addMutations', error);
+        }
+
+        return data ?? [];
+    }
+
+    async function addMutation(packId, mutation) {
+        const [row] = await addMutations(packId, [mutation]);
+        return row;
     }
 
     async function deleteMutations(packId, mutationIds) {
@@ -446,6 +460,7 @@ function createPackRepository(supabase) {
         setDropRates,
         setEligibility,
         addMutation,
+        addMutations,
         deleteMutations,
         deleteAllMutations,
         createDefinition,

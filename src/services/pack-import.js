@@ -163,9 +163,9 @@ async function applyMutations(packRepository, packId, mutationsInput) {
         await packRepository.deleteMutations(packId, removeIds);
     }
 
-    for (const entry of toAdd) {
-        const mutation = normalizeMutationInput(entry);
-        await packRepository.addMutation(packId, mutation);
+    if (toAdd.length > 0) {
+        const mutations = toAdd.map((entry) => normalizeMutationInput(entry));
+        await packRepository.addMutations(packId, mutations);
     }
 }
 
