@@ -34,20 +34,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Planned (post–`0.2.3`)
 
 **Phase 2 — card composition / reveal / filters**
-- Modular card image composer (per-component toggles; performance block off by default)
+- Modular card image composer (`@napi-rs/canvas`): overlays on a baked base (photo, logo, flag, stat chrome/labels). Runtime draws year/make/model, stat values, drivetrain/tires, RP (off by default), and a **full rarity-row PNG** (1–5★ palette; 6★ iridescent, not tinted)
+- Public `/view-card` catalog lookup, **front only** (not admin-only; Phase 4 adds garage ownership and card back). No separate preview command
+- Pack reveal uses the composed image; **remove rarity embed sidebar color** (Phase 1 accent was a placeholder)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
 - Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
 - Bound concurrent image reachability probes when validating non-trusted URLs
 - Shared pack eligibility filter logic (SQL + in-memory + import checks); normalize eligibility cache keys
 - `/open-pack` reveal ownership: enforce opener via session `userId` (do not fail-open when message interaction metadata is missing)
 - Split long pack modules when that work lands (shared filters; thinner `pack-import` / `pack-service` / `pack-repository`); drop unused pack-service exports
+- Delivery: several short PRs (canvas boot → visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). Overlay **contracts** (config/slots) land before **orchestration** (fetch/encode/cache). First Discord-visible overlay does not wait on `/open-pack`
 
 **Phase 3 — performance engine**
 - Tracksets, draft performance calculator, bulk recalc, `/calc-performance`
 - Open-path polish: batch guarantee car lookups; reuse eligibility cache for filter guarantees
 
 **Phase 4 — collection & web**
-- Garage, wishlist, profile, Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
+- Garage, wishlist, profile; extend `/view-card` (ownership + back); Wispbyte prod deploy; RLS deny-by-default before non–service-role clients
 
 **Phase 5+**
 - Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
@@ -59,7 +62,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Imperial/metric display toggle
 - Optional automated tests for formatters, import normalization, and pack stats event builders
 - Optional: automate CHANGELOG/README edits in the version-bump workflow (currently author-owned on feature PRs)
-- Phase 2/3 placeholders remain intentional: `assets/card/`, `docs/performance-formulas-draft.md`
+- Phase 2/3 placeholders remain intentional: `assets/card/` (including future star-row PNGs) and `docs/performance-formulas-draft.md`
 
 ---
 

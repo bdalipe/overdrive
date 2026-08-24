@@ -65,7 +65,7 @@ Each file is a JSON object:
 | `model_year` | No | |
 | `tag` | No | Freeform maintainer tag |
 | `description` | No | Clear with `"description": null` on a patch |
-| `image_url` | No | Public HTTPS URL; prefer Supabase Storage |
+| `image_url` | No | Public HTTPS URL of the **baked card base** (photograph + logo + flag + stat chrome/labels). Prefer Supabase Storage. Overlay text, stats, star row, and RP are drawn at runtime — do not upload a fully composed card unless you intend those pixels to stay baked |
 | `created_at` | — | DB-managed; do not set in drops |
 
 - Set numeric stat + `*_status` together (`handling` + `handling_status: "available"`).

@@ -1,7 +1,7 @@
 const EMBED_COLOR_PRIMARY = 0x5865f2;
 const EMBED_COLOR_PACK = 0xf1c40f;
 
-/** Pack reveal embed accent by rarity (1–6★). */
+/** Pack reveal embed accent by rarity (1–6★). Phase 1 placeholder — stop using on card reveals once composed star rows ship (M2). Hexes remain the 1–5★ star-fill reference. */
 const RARITY_EMBED_COLORS = Object.freeze({
     1: 0xcecdce,
     2: 0x6fe16e,

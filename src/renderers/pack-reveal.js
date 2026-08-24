@@ -13,6 +13,7 @@ function sortCardsByRarityDesc(cars) {
 
 /**
  * Phase 1–2 interim reveal: title + optional image only (no embed fields).
+ * Embed accent uses rarity color until Phase 2 composed cards replace it with star-row art.
  */
 function buildPackCardEmbed(car, { currentPage, totalCards, packSlug }) {
     const display = buildCardDisplay(car);
