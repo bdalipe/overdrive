@@ -16,4 +16,4 @@ At compose time the bot draws:
 
 **1–5★** rows use solid fills in the rarity palette (same family as the old pack-reveal embed accents). **6★** is iridescent art — do not tint it in Canvas.
 
-Drop layout references and star-row PNGs in this folder when they are ready. Typography and frame art are maintainer assets. Code owns slot positions, overlay toggles, and data binding.
+Drop layout references and star-row PNGs in this folder when they are ready. Overlay slots for a **1652×1029** base live in `src/renderers/card/layout.js` (retune against a real PNG). Typography and frame art are maintainer assets. Code owns slot positions, overlay toggles, and data binding.
