@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 > **Maintainers:** Before every `feature/*` → `develop` PR, add a dated `## [X.Y.Z]` section for the **target** version (after CI bump), set `package.json` to the pre-bump base, and sync [README.md](README.md) (version line, status, setup). The [Version Bump workflow](.github/workflows/version-bump.yml) updates **`package.json` only** (and creates a version tag); it does **not** edit this file or the README.
 
+## [0.2.5] - 2026-08-24
+
+Phase 2 compose **contracts** (`canvas-architecture`). `package.json` on this branch is `0.2.4` so a `version:patch` merge to `develop` lands at `0.2.5`. Pack reveal is unchanged (no composed Discord images yet).
+
+### Added
+- `@napi-rs/canvas` with fail-soft boot smoke (`canvas_ready` / `canvas_unavailable`; bot still starts if native load fails)
+- `src/renderers/card/compose-config.js` — overlay toggles (RP off by default), `strict` always true, in-memory overrides + hash helper for a future cache key
+- `src/renderers/card/layout.js` — first-pass slots for a **1652×1029** baked base (`templateVersion` `v1-1652x1029`)
+- Overlay no-op registry (`registry.js` + `components/`) matching overlay ids; enabled stubs do not throw
+
+### Changed
+- README Phase 2 status in progress; design notes for bake/draw, strict skips, layout size
+
+---
+
 ## [Unreleased]
 
 ### Changed (post-M1 harden-hygiene + catalog-patch → `0.2.3`)
@@ -31,19 +46,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pack import: batch `addMutations` for `mutations.add` (one insert instead of N+1)
 - Docs: catalog & pack-import follow-ups marked complete; Phase 2+ Planned only (no remaining catalog Planned items)
 
-### Planned (post–`0.2.3`)
+### Planned (post–`0.2.5`)
 
 **Phase 2 — card composition / reveal / filters**
-- Modular card image composer (`@napi-rs/canvas`): overlays on a baked base (photo, logo, flag, stat chrome/labels). Runtime draws year/make/model, stat values, drivetrain/tires, RP (off by default), and a **full rarity-row PNG** (1–5★ palette; 6★ iridescent, not tinted)
+- Draw overlays and compose-then-display (`@napi-rs/canvas`) on the 1652×1029 baked base; star-row PNGs; RP overlay off until Phase 3
 - Public `/view-card` catalog lookup, **front only** (not admin-only; Phase 4 adds garage ownership and card back). No separate preview command
 - Pack reveal uses the composed image; **remove rarity embed sidebar color** (Phase 1 accent was a placeholder)
+- Optional: `/admin` overlay-flag command persisting to a Supabase row (live in-memory apply + survive restart)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
 - Probe or re-check trusted Supabase Storage public URLs so missing objects do not embed as broken images
 - Bound concurrent image reachability probes when validating non-trusted URLs
 - Shared pack eligibility filter logic (SQL + in-memory + import checks); normalize eligibility cache keys
 - `/open-pack` reveal ownership: enforce opener via session `userId` (do not fail-open when message interaction metadata is missing)
 - Split long pack modules when that work lands (shared filters; thinner `pack-import` / `pack-service` / `pack-repository`); drop unused pack-service exports
-- Delivery: several short PRs (canvas boot → visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). Overlay **contracts** (config/slots) land before **orchestration** (fetch/encode/cache). First Discord-visible overlay does not wait on `/open-pack`
+- Delivery: remaining short PRs (visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). First Discord-visible overlay does not wait on `/open-pack`
 
 **Phase 3 — performance engine**
 - Tracksets, draft performance calculator, bulk recalc, `/calc-performance`

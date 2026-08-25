@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.2.3` (`feature/catalog-patch`; merge to `develop` with `version:patch` only if CI should bump past `0.2.3`)
+**Version:** `0.2.4` (`canvas-architecture`; merge to `develop` with `version:patch` so CI lands at `0.2.5`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -16,7 +16,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
 | **1** — Pack simulator | M1 + post-M1 harden/hygiene + catalog/pack-import follow-ups (merge/patch cars, batch serials & mutations, delete/audit guards) | **Complete** (`0.2.0`–`0.2.3`) |
-| **2** — Card composition | M2: modular card image composer, pack reveal images, catalog `/view-card` (front) | Not started |
+| **2** — Card composition | M2: modular card image composer, pack reveal images, catalog `/view-card` (front) | **In progress** (compose contracts; no Discord card image yet) |
 | **3** — Performance engine | M3: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
 | **4** — Collection & profile | M4: garage, wishlist, profile, extend `/view-card` (ownership + back), **Wispbyte prod deploy** | Not started |
 
@@ -70,6 +70,15 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 | Car/pack delete APIs + maintainer scripts | Done |
 | `cars.findEligible` for filtered / explicit_ids packs | Done |
 
+### Phase 2 compose-contracts checklist
+
+| Item | Status |
+|------|--------|
+| `@napi-rs/canvas` boot smoke (`renderers/card/canvas-runtime.js`) | Done (fail-soft; bot stays up if native load fails) |
+| Overlay toggles (`compose-config.js`) | Done (RP off; `strict` true) |
+| Layout 1652×1029 (`layout.js`) | Done (first-pass slots) |
+| Overlay stubs (`registry.js`) | Done (no drawing) |
+
 **Hosting:** Production deployment on [Wispbyte](https://wispbyte.com/store/discord) is planned at **end of Phase 4** (after M4). Phases 0–3 use the **dev bot on your PC**.
 
 ### Commands available today
@@ -87,6 +96,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+ (for `node --watch` in dev scripts)
+- Native `@napi-rs/canvas` (installed with `npm install`; boot logs `canvas_ready` or `canvas_unavailable` and does not crash)
 - A Discord application with a bot token ([Developer Portal](https://discord.com/developers/applications))
 - Bot invited to a test server with `applications.commands` scope
 
@@ -237,7 +247,7 @@ src/
 ├── models/               # Domain models (car + pack import normalization)
 ├── repositories/         # Supabase persistence (cars, packs, stats, config_change_events)
 ├── services/             # drop-rate, pack-service, pack-import, config-change-events, createServices
-├── renderers/            # embeds.js (lightweight/admin), pack-reveal.js, card-display.js; card/ (Phase 2+)
+├── renderers/            # embeds.js, pack-reveal.js, card-display.js; card/ (canvas boot, compose-config, layout, overlay stubs)
 └── shared/               # config, logger, metrics, theme, image-url, supabase, generate-serial-id
 data/catalog/             # manifest.json + drops/ (car JSON content drops)
 data/packs/               # manifest.json + drops/ (pack config drops)
@@ -378,14 +388,18 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] Local `[db.seed]` disabled (no `seed.sql` required; use npm catalog scripts)
 
 ### Phase 2 — Modular card composition
-- [ ] Per-overlay renderers (title, star-row stamp, stats values, drivetrain/tires, optional RP)
-- [ ] Compose-then-display pipeline for embed **attachments** (`@napi-rs/canvas`)
-- [ ] Overlay toggles (RP **off** until Phase 3)
+- [x] Overlay toggles (`compose-config.js`: RP **off**; `strict` always true; hash helper for a future cache key)
+- [x] Layout slots for a **1652×1029** base (`layout.js`; retune against a real PNG)
+- [x] Overlay contract + no-op stubs (`registry.js` + `components/`; no drawing yet)
+- [x] `@napi-rs/canvas` at boot (fail-soft)
+- [ ] Per-overlay **drawing** (title, star-row stamp, stats values, drivetrain/tires, optional RP)
+- [ ] Compose-then-display pipeline for embed **attachments**
 - [ ] Bake vs draw: photo, logo, flag, and stat **chrome/labels** stay on `image_url`; runtime draws year/make/model, stat **numbers**, drivetrain/tires, RP (when on), and a **full rarity-row PNG**
 - [ ] Star assets: six row PNGs (`1`–`6`); 1–5★ fills follow rarity palette; **6★ iridescent** (not Canvas-tinted)
 - [ ] `/view-card` public catalog lookup, **front only** (not admin-only; no extra preview command)
 - [ ] Pack reveal uses composed image; **drop rarity embed sidebar color** (Phase 1 accent was a placeholder)
-- [ ] Delivery: several short PRs (canvas boot → visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). First Discord-visible overlay does not wait on `/open-pack`. Overlay **contracts** (config/slots) land before **orchestration** (fetch/encode/cache)
+- [ ] Future: admin overlay-flag command persisting to a Supabase row (live apply in memory + survive restart)
+- [ ] Delivery: remaining short PRs (visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). First Discord-visible overlay does not wait on `/open-pack`
 - [ ] Reference layout / assets: `assets/card/` (non-final; add `stars/row-1.png` … `row-6.png` with the composer)
 - [ ] *(Goal)* Multi-embed / multi-message pack opens so large `pack_size` values stay under Discord limits (today’s cap is 50)
 - [ ] *(Goal)* Revisit reachability checks for trusted Storage image URLs
@@ -423,17 +437,16 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); collision checks via DB `exists` (packs) or an in-memory taken set after `cars.listIds` for catalog batch allocate (`generateSerialIds`)
 - **Stat display** — unknown → **Unavailable**; not applicable → **N/A**; value + `*_status` set together via domain helpers / import. **Pack reveal (Phase 1 interim):** embed shows only title `Year Make Model (★★★)` + optional `image_url`; other fields stay on the car row for Phase 2 compose and `/view-card`.
 - **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
-- **Display units** — imperial defaults today (e.g. weight in **lbs**, speed in **mph**). A user or guild **imperial / metric** toggle is planned for a future settings slice; until then, formatters in `models/car.js` use imperial suffixes.
 - **Pack mutations** — guarantee/bonus rules in pack drops; persist until removed via `mutations.remove_ids` or `replace`; `100%` = guarantee (bypasses pack eligibility; count must be ≤ `pack_size`); bonuses (`&lt;100`) must resolve within eligibility (`import-packs` rejects otherwise). On each normal draw slot, every eligible bonus rolls independently; if several succeed, one is chosen at random for that slot
 - **`pack_size`** — **1–50** for now (`MAX_PACK_SIZE`); enforced at import, repository writes, open (`generatePack`), and DB CHECK (`007`). Summary embed description truncates at Discord’s 4096-character limit. Larger packs need future multi-embed / multi-message reveal work before raising the cap
 - **Default pack delete** — blocked in `deleteById` and by `BEFORE DELETE` trigger (`007`)
 - **Pack import creates** — mid-create failure deletes the new pack (CASCADE children) so re-runs are not blocked by half-created slugs; create+audit failure also rolls back the new pack; rollback delete failures are thrown. Earlier creates in the same drop file roll back if a later entry fails. Manifest updates only after the full drop succeeds. **Patches** that fail mid-write or on audit are not auto-reverted
 - **Drop rates** — seeded default pack (`100000`) uses 45/27/15/8/4/1 in migration `003`. **Import create:** omitted tiers → **0**; sum must be **100**. **Import patch:** omitted tiers **retain** DB weights; merged sum must be **100**. Runtime read may fall back to baseline when rows are missing. If weighted roll finds no overlap with the eligible pool, open picks uniformly among rarities that have cars; opens fail if final card count ≠ `pack_size`.
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Car drops: **merge** when `id` exists (omitted fields kept); **`replace: true`** for full-row wipe; new ids use full-row create. Local `supabase db reset` does not run SQL seeds (`[db.seed]` disabled); use npm catalog scripts after migrations
-- **Card composition** — per-car **base** (`image_url`: photograph, logo, flag, stat-column chrome/labels) plus Canvas overlays: year/make/model, stat **values**, drivetrain/tires, RP (off until Phase 3), rarity as **one pre-made star-row PNG** per rarity 1–6 (1–5★ palette fills; **6★ iridescent**, not tinted in code). Overlays are independently toggleable. Encode only after all **enabled** overlays succeed. Parallelize **image download** with other I/O, not `fillText`. Cache by car id + compose config + template version. Prefer `@napi-rs/canvas`. First Discord-visible compose check is **`/view-card`** (public catalog, front only).
+- **Card composition** — per-car **base** (`image_url`: photograph, logo, flag, stat-column chrome/labels) plus Canvas overlays: year/make/model, stat **values**, drivetrain/tires, RP (off until Phase 3), rarity as **one pre-made star-row PNG** per rarity 1–6 (1–5★ palette fills; **6★ iridescent**, not tinted in code). Overlays are independently toggleable (`compose-config.js`; disabled flags skip, they do not fail **strict**). Encode only after all **enabled** overlays succeed. Parallelize **image download** with other I/O, not `fillText`. Cache by car id + compose config hash + layout `templateVersion`. Prefer `@napi-rs/canvas` (boot smoke today; no composed Discord image yet). First Discord-visible compose check is **`/view-card`** (public catalog, front only). Layout slots assume a **1652×1029** base (`layout.js`).
 - **Rarity signaling** — stars on the composed image. Phase 1 pack-reveal **embed accent by rarity** is a placeholder; **remove it from card reveals by M2**.
 - **`/view-card`** — Phase 2: public catalog id, front only (no separate admin preview). Phase 4: garage copy, ownership, card back.
-- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (Phase 1: title, optional image, summary; Phase 2: composed attachment); `card-display.js` for stat formatting; Phase 2 `renderers/card/` for composed images
+- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (Phase 1: title, optional image, summary; Phase 2: composed attachment); `card-display.js` for stat formatting; `renderers/card/` for canvas boot, compose-config, layout, and overlay stubs (drawing not wired)
 - **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`) **until Phase 2 drops it**; in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent. **Follow-up:** enforce opener via session user id (avoid fail-open if Discord message interaction metadata is missing)
 - **Stats events** — each successful `/open-pack` appends `pack_open` plus one `pull` per card to `stats_events` (`pack-stats-events.js`); `packSize` matches configured `pack_size` (opens that cannot fill that many cards fail before stats). Insert failures are logged and do not block the reveal
 - **Performance in schema** nullable until Phase 3 calculator fills ratings
