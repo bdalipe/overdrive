@@ -5,6 +5,7 @@ const { createSupabaseClient } = require('./shared/supabase');
 const { createRepositories } = require('./repositories');
 const { createServices } = require('./services');
 const logger = require('./shared/logger');
+const { initCanvas } = require('./renderers/card/canvas-runtime');
 
 const config = loadEnv();
 const supabase = createSupabaseClient(config);
@@ -17,6 +18,8 @@ const runtimeConfig = {
     repositories,
     services,
 };
+
+initCanvas();
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],

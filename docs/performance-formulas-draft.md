@@ -35,7 +35,7 @@ Numeric **rating** maps to **performance_class** via fixed bands (inclusive lowe
 | **E** | — | 400 – 499 |
 | **F** | — | 399 or below |
 
-Implementation: `band_map(rating)` in `performance-calculator-service.js` returns single letter (`P`, `S`, `A`, …, `F`). Card composer performance block shows class + rating (e.g. `B 742`). Bands are draft — adjust only with `formula_version` bump and bulk recalc.
+Implementation: `band_map(rating)` in `performance-calculator-service.js` returns single letter (`P`, `S`, `A`, …, `F`). On the composed card (Phase 2 overlay, **off** until this engine fills values), show **RP** at the bottom-left (rating number + “RP”, with drop shadow; class letter may sit with the same block). Bands are draft — adjust only with `formula_version` bump and bulk recalc.
 
 ```js
 // Draft — illustrative only
