@@ -3,13 +3,15 @@ const admin = require('./admin');
 const debugLatency = require('./admin/debug-latency');
 const hello = require('./hello');
 const openPack = require('./open-pack');
+const viewCard = require('./view-card');
 
 /**
  * Command modules export `name`, `description`, and `execute(interaction, config)`.
  * Modules with nested options export `buildDefinition(context)` instead of a flat builder.
  * Paginated commands also export `paginationPrefix` and `handleButton(interaction, config)`.
+ * Commands with autocomplete export `handleAutocomplete(interaction, config)`.
  */
-const commandModules = [hello, openPack, admin];
+const commandModules = [hello, openPack, viewCard, admin];
 
 const commandHandlers = new Map(commandModules.map((command) => [command.name, command]));
 
