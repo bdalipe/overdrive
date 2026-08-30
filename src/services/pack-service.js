@@ -1,11 +1,11 @@
 const { randomInt } = require('crypto');
 const { createDropRateService, rollRarity } = require('./drop-rate-service');
 const { createPackConfigCache } = require('./pack-config-cache');
+const { CATALOG_POOL_CACHE_KEY } = require('./catalog-pool');
 const { RESERVED_DEFAULT_PACK_ID } = require('../shared/generate-serial-id');
 const { assertValidPackSize } = require('../models/pack');
 const logger = require('../shared/logger');
 
-const CAR_POOL_CACHE_KEY = 'cars:listAll';
 const ELIGIBLE_CACHE_PREFIX = 'eligible:';
 
 /**
@@ -33,7 +33,7 @@ function stableStringify(value) {
  */
 function eligibilityCacheKey(eligibility) {
     if (!eligibility || eligibility.rule_type === 'all_cars') {
-        return CAR_POOL_CACHE_KEY;
+        return CATALOG_POOL_CACHE_KEY;
     }
 
     if (eligibility.rule_type === 'explicit_ids') {
@@ -251,9 +251,13 @@ function sortCardsByRarity(cards) {
     return [...cards].sort((a, b) => a.rarity - b.rarity);
 }
 
-function createPackService({ packs, cars, dropRateService, configCache }) {
+function createPackService({ packs, cars, dropRateService, configCache, catalogPool }) {
     const dropRates = dropRateService ?? createDropRateService(packs);
     const cache = configCache ?? createPackConfigCache();
+
+    if (!catalogPool) {
+        throw new Error('createPackService requires catalogPool');
+    }
 
     async function resolvePack(packId) {
         if (packId != null) {
@@ -294,7 +298,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
     }
 
     async function loadAllCars() {
-        return cache.getOrLoad(CAR_POOL_CACHE_KEY, () => cars.listAll());
+        return catalogPool.getAllCars();
     }
 
     async function loadEligibleCars(eligibility) {
@@ -307,7 +311,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
     }
 
     function invalidateCarPool() {
-        cache.invalidate(CAR_POOL_CACHE_KEY);
+        catalogPool.invalidate();
         cache.invalidatePrefix(ELIGIBLE_CACHE_PREFIX);
     }
 
@@ -401,7 +405,7 @@ function createPackService({ packs, cars, dropRateService, configCache }) {
 
 module.exports = {
     createPackService,
-    CAR_POOL_CACHE_KEY,
+    CATALOG_POOL_CACHE_KEY,
     ELIGIBLE_CACHE_PREFIX,
     eligibilityCacheKey,
     matchesFilter,
