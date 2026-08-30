@@ -1,11 +1,11 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { buildViewCardEmbed } = require('../renderers/view-card');
 const { formatPackRevealTitle } = require('../renderers/card-display');
+const { rankCars } = require('../services/catalog-rank');
 const { applyReachableImageUrls } = require('../shared/image-url');
 const logger = require('../shared/logger');
 
 const SIX_DIGIT_ID = /^\d{6}$/;
-const AUTOCOMPLETE_MAX_CHOICES = 25;
 
 const INVALID_ID_MESSAGE =
     'Oops! Please choose from the list of cards or enter the ID directly.';
@@ -38,22 +38,14 @@ function isSixDigitCardId(value) {
 }
 
 /**
- * Baseline autocomplete for discovery testing: substring match on id/title, catalog id order, max 25.
- * No relevance ranking yet — informs how much discovery logic to add later.
+ * Autocomplete discovery via catalog-rank (scoring tiers added incrementally).
  */
 async function handleAutocomplete(interaction, config) {
-    const focused = interaction.options.getFocused().trim().toLowerCase();
+    const focused = interaction.options.getFocused();
     const cars = await config.services.catalogPool.getAllCars();
+    const ranked = rankCars(cars, focused);
 
-    const filtered = focused
-        ? cars.filter((car) => {
-            const id = String(car.id);
-            const title = formatPackRevealTitle(car).toLowerCase();
-            return id.includes(focused) || title.includes(focused);
-        })
-        : cars;
-
-    const choices = filtered.slice(0, AUTOCOMPLETE_MAX_CHOICES).map((car) => ({
+    const choices = ranked.map((car) => ({
         name: truncateChoiceName(formatPackRevealTitle(car)),
         value: String(car.id),
     }));
@@ -72,7 +64,7 @@ async function prepareCarForDisplay(car) {
 }
 
 async function execute(interaction, config) {
-    const query = interaction.options.getString('query', true).trim();
+    const query = interaction.options.getString('card', true).trim();
 
     if (!isSixDigitCardId(query)) {
         await interaction.reply({
