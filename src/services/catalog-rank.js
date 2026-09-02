@@ -9,6 +9,14 @@ function normalizeQuery(query) {
     return (query ?? '').trim().toLowerCase();
 }
 
+function tokenizeQuery(query) {
+    return normalizeQuery(query).split(/\s+/).filter(Boolean);
+}
+
+function allTokensIn(text, tokens) {
+    return tokens.every((token) => text.includes(token));
+}
+
 function compareCarsAlphabetically(a, b) {
     const makeCmp = (a.make ?? '').toLowerCase().localeCompare((b.make ?? '').toLowerCase());
     if (makeCmp !== 0) {
@@ -71,8 +79,13 @@ function scoreCar(car, query) {
     const make = (car.make ?? '').toLowerCase();
     const model = (car.model ?? '').toLowerCase();
     const fullLabel = `${year} ${make} ${model}`.trim();
+    const tokens = tokenizeQuery(query);
 
     if (displayName === q || fullLabel === q) {
+        return 800;
+    }
+
+    if (tokens.length >= 2 && allTokensIn(fullLabel, tokens)) {
         return 800;
     }
 
@@ -133,6 +146,7 @@ function rankCars(cars, query) {
 module.exports = {
     MAX_RESULTS,
     normalizeQuery,
+    tokenizeQuery,
     buildSearchHaystack,
     scoreCar,
     rankCars,
