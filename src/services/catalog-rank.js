@@ -9,6 +9,20 @@ function normalizeQuery(query) {
     return (query ?? '').trim().toLowerCase();
 }
 
+function compareCarsAlphabetically(a, b) {
+    const makeCmp = (a.make ?? '').toLowerCase().localeCompare((b.make ?? '').toLowerCase());
+    if (makeCmp !== 0) {
+        return makeCmp;
+    }
+
+    const modelCmp = (a.model ?? '').toLowerCase().localeCompare((b.model ?? '').toLowerCase());
+    if (modelCmp !== 0) {
+        return modelCmp;
+    }
+
+    return a.id - b.id;
+}
+
 function buildSearchHaystack(car) {
     const parts = [
         String(car.id),
@@ -35,17 +49,25 @@ function scoreCar(car, query) {
     }
 
     const idStr = String(car.id);
+    const year = car.model_year != null ? String(car.model_year) : '';
 
     if (SIX_DIGIT_ID.test(q) && idStr === q) {
         return 1000;
     }
 
-    if (/^\d+$/.test(q) && idStr.startsWith(q)) {
-        return 900;
+    if (/^\d+$/.test(q)) {
+        if (year === q) {
+            return 920;
+        }
+
+        if (idStr.startsWith(q)) {
+            return 900;
+        }
+
+        return 0;
     }
 
     const displayName = formatDisplayName(car).toLowerCase();
-    const year = car.model_year != null ? String(car.model_year) : '';
     const make = (car.make ?? '').toLowerCase();
     const model = (car.model ?? '').toLowerCase();
     const fullLabel = `${year} ${make} ${model}`.trim();
@@ -54,7 +76,7 @@ function scoreCar(car, query) {
         return 800;
     }
 
-    if (displayName.startsWith(q) || fullLabel.startsWith(q)) {
+    if (displayName.startsWith(q)) {
         return 700;
     }
 
@@ -84,8 +106,8 @@ function scoreCar(car, query) {
 function rankCars(cars, query) {
     const normalized = normalizeQuery(query);
 
-    if (!normalized) {
-        return cars.slice(0, MAX_RESULTS);
+    if (normalized.length < 2) {
+        return [];
     }
 
     const scored = [];
@@ -102,7 +124,7 @@ function rankCars(cars, query) {
             return b.score - a.score;
         }
 
-        return a.car.id - b.car.id;
+        return compareCarsAlphabetically(a.car, b.car);
     });
 
     return scored.map((entry) => entry.car).slice(0, MAX_RESULTS);
