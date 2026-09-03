@@ -2,7 +2,7 @@
 
 Discord bot for collecting cars through pack openings, garages, and community features — inspired by Top Drives-style card collection.
 
-**Version:** `0.2.4` (`canvas-architecture`; merge to `develop` with `version:patch` so CI lands at `0.2.5`)
+**Version:** `0.2.5` (`feature/view-card`; merge to `develop` with `version:patch` so CI lands at `0.2.6`)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file and the changelog on each version bump.
 
@@ -16,7 +16,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 |-------|-----------|--------|
 | **0** — Foundation | M0: bot skeleton, `/hello`, `/open-pack` pagination shell, dev/prod config | **Complete** |
 | **1** — Pack simulator | M1 + post-M1 harden/hygiene + catalog/pack-import follow-ups (merge/patch cars, batch serials & mutations, delete/audit guards) | **Complete** (`0.2.0`–`0.2.3`) |
-| **2** — Card composition | M2: modular card image composer, pack reveal images, catalog `/view-card` (front) | **In progress** (compose contracts; no Discord card image yet) |
+| **2** — Card composition | M2: modular card image composer, pack reveal images, catalog `/view-card` (front) | **In progress** (`/view-card` ID lookup + autocomplete; compose contracts; interim embed) |
 | **3** — Performance engine | M3: tracksets, performance calculator, bulk recalc, `/calc-performance` | Not started |
 | **4** — Collection & profile | M4: garage, wishlist, profile, extend `/view-card` (ownership + back), **Wispbyte prod deploy** | Not started |
 
@@ -87,7 +87,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history. Update **both** this file 
 |---------|-------------|
 | `/hello` | Greeting embed with current environment (`dev` / `prod`) |
 | `/open-pack` | Required **pack** dropdown of active packs (e.g. Standard Pack, Test Pack); weighted pulls, paginated reveal, **Skip** to summary; stats to `stats_events` |
-| `/view-card` | **Planned (Phase 2):** public catalog lookup; composed **front** image. Phase 4 adds garage ownership and card back |
+| `/view-card` | Required **card** option (6-digit ID on submit). **Autocomplete** discovers cars by id prefix, year, make, or model (`catalog-rank`; min 2 characters; up to 25 choices). Valid id → public interim title + `image_url` embed; invalid or unknown id → ephemeral error. Re-run `register-commands` after deploy. Phase 4 adds garage ownership and card back |
 | `/admin debug-latency` | Administrator diagnostics: ping, interaction timings, DB round-trip (paginated reference) |
 | `/admin clear-cache` | Administrator: clear this bot process pack config, car pool, and image probe caches (after catalog imports) |
 
@@ -229,7 +229,7 @@ npm start
 | Change | Re-register? | Restart bot? |
 |--------|--------------|--------------|
 | Command handler logic (replies, embeds) | No | Yes (or auto via `dev`) |
-| New / renamed slash command | **Yes** | Yes after register |
+| New / renamed slash command or option (e.g. `/view-card` **card** + autocomplete) | **Yes** | Yes after register |
 | New / removed / renamed **active packs** (`import-packs`) | **Yes** (`/open-pack` pack choices) | Prefer `/admin clear-cache` (or restart); re-register for choices |
 | Car catalog import / delete / clear-stubs / seed-stubs | No | Prefer `/admin clear-cache` (or restart / wait ~60s TTL). Script `invalidate*` does not clear the live bot |
 | `.env` token or guild ID | No | Yes |
@@ -243,10 +243,10 @@ src/
 ├── index.js              # Client bootstrap, Supabase + repositories + services on runtime config
 ├── register-commands.js  # Slash command registration (REST; loads active packs from Supabase for /open-pack choices)
 ├── commands/             # Slash command handlers + registry (/open-pack pack choices built at register time)
-├── interactions/         # Router, pagination (Prev/Next/Skip)
+├── interactions/         # Router (chat, autocomplete, buttons), pagination (Prev/Next/Skip)
 ├── models/               # Domain models (car + pack import normalization)
 ├── repositories/         # Supabase persistence (cars, packs, stats, config_change_events)
-├── services/             # drop-rate, pack-service, pack-import, config-change-events, createServices
+├── services/             # drop-rate, pack-service, pack-import, catalog-pool, catalog-rank, config-change-events, createServices
 ├── renderers/            # embeds.js, pack-reveal.js, card-display.js; card/ (canvas boot, compose-config, layout, overlay stubs)
 └── shared/               # config, logger, metrics, theme, image-url, supabase, generate-serial-id
 data/catalog/             # manifest.json + drops/ (car JSON content drops)
@@ -363,7 +363,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [x] `/open-pack` wired: weighted opens, interim reveal, Skip + summary, preloaded pages, pack config cache
 - [x] Stats events on pack open (`pack_open` + per-card `pull` → `stats_events`)
 - [x] Image URL reachability (`shared/image-url.js`): probe cache, trusted Supabase Storage skip, 2s timeout; omit dead links on reveal
-- [x] Open-path latency: parallel stats + image validation; `loadAllCars()` pool cache for `all_cars` packs (60s TTL, `invalidateCarPool`; in-process only)
+- [x] Open-path latency: parallel stats + image validation; shared `catalog-pool` cache for `all_cars` packs and `/view-card` autocomplete (60s TTL, `invalidateCarPool`; in-process only)
 - [x] Interim pack reveal: title + image + rarity accent (`pack-reveal.js`, `theme.js`); card count excludes summary page — **rarity embed accent removed in Phase 2**
 - [x] Pack catalog import (`import-packs`, `data/packs/drops/`) — create/patch themed + default packs (**not** Discord `/admin pack` wizards)
 - [x] Config change audit (`config_change_events`) for car and pack imports
@@ -396,7 +396,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - [ ] Compose-then-display pipeline for embed **attachments**
 - [ ] Bake vs draw: photo, logo, flag, and stat **chrome/labels** stay on `image_url`; runtime draws year/make/model, stat **numbers**, drivetrain/tires, RP (when on), and a **full rarity-row PNG**
 - [ ] Star assets: six row PNGs (`1`–`6`); 1–5★ fills follow rarity palette; **6★ iridescent** (not Canvas-tinted)
-- [ ] `/view-card` public catalog lookup, **front only** (not admin-only; no extra preview command)
+- [x] `/view-card` public catalog lookup — **card** option, 6-digit ID execute, autocomplete (`catalog-rank` + `catalog-pool`); interim embed until compose
 - [ ] Pack reveal uses composed image; **drop rarity embed sidebar color** (Phase 1 accent was a placeholder)
 - [ ] Future: admin overlay-flag command persisting to a Supabase row (live apply in memory + survive restart)
 - [ ] Delivery: remaining short PRs (visible `/view-card` → stats → star rows/title → RP off → cache → pack reveal). First Discord-visible overlay does not wait on `/open-pack`
@@ -431,7 +431,7 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 
 ## Design principles
 
-- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **`all_cars` pools** cached via `loadAllCars()` (**60s TTL**). **`filter` / `explicit_ids` pools** cached via `findEligible` keyed by eligibility hash (**60s TTL**); both car-pool styles clear on `invalidateCarPool` / `/admin clear-cache`. Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
+- **Sub-1s** interaction latency for common commands. **Pack opens:** pack row + rates + eligibility + mutations cached (**60s TTL**, `pack-config-cache.js`). Concurrent cold misses for the same key share one in-flight load. **Full catalog** (`cars:listAll`) cached via **`catalog-pool.js`** for `all_cars` pack draws and `/view-card` autocomplete (**60s TTL**). **`filter` / `explicit_ids` pools** cached via `findEligible` keyed by eligibility hash (**60s TTL**); all car-pool keys clear on `invalidateCarPool` / `/admin clear-cache`. Cache Maps live in the bot process — maintainer scripts that call `invalidate*` only clear their own process; use **`/admin clear-cache`**, restart the bot, or wait for TTL after catalog changes. **Paging:** prebuilt embeds + button rows reused on Prev/Next/Skip. **Images:** Supabase Storage public URLs trusted by default; other hosts probed with **2s** timeout and **10 min** result cache (`image-url.js`); stats insert and image validation run in parallel on open. Prefer Supabase Storage and &lt; 800 KB assets.
 - **Modular** layers — commands, services, repositories, renderers. Pack open / import / repository modules are already the longest files; when shared eligibility filters or the next pack-import hardening lands, prefer extracting a shared filter helper and splitting create/patch/mutate (and repository facets) rather than growing those files further
 - **No dev-generated car content**
 - **6-digit IDs** — cars and packs use random serials `100000`–`999999` (default pack reserved `100000`); collision checks via DB `exists` (packs) or an in-memory taken set after `cars.listIds` for catalog batch allocate (`generateSerialIds`)
@@ -445,8 +445,8 @@ See [Version Bump workflow](.github/workflows/version-bump.yml). Default label i
 - **Catalog import** — versioned JSON drops: `data/catalog/drops/` (cars), `data/packs/drops/` (packs); manifests track applied vs pending; writes logged to `config_change_events`. Car drops: **merge** when `id` exists (omitted fields kept); **`replace: true`** for full-row wipe; new ids use full-row create. Local `supabase db reset` does not run SQL seeds (`[db.seed]` disabled); use npm catalog scripts after migrations
 - **Card composition** — per-car **base** (`image_url`: photograph, logo, flag, stat-column chrome/labels) plus Canvas overlays: year/make/model, stat **values**, drivetrain/tires, RP (off until Phase 3), rarity as **one pre-made star-row PNG** per rarity 1–6 (1–5★ palette fills; **6★ iridescent**, not tinted in code). Overlays are independently toggleable (`compose-config.js`; disabled flags skip, they do not fail **strict**). Encode only after all **enabled** overlays succeed. Parallelize **image download** with other I/O, not `fillText`. Cache by car id + compose config hash + layout `templateVersion`. Prefer `@napi-rs/canvas` (boot smoke today; no composed Discord image yet). First Discord-visible compose check is **`/view-card`** (public catalog, front only). Layout slots assume a **1652×1029** base (`layout.js`).
 - **Rarity signaling** — stars on the composed image. Phase 1 pack-reveal **embed accent by rarity** is a placeholder; **remove it from card reveals by M2**.
-- **`/view-card`** — Phase 2: public catalog id, front only (no separate admin preview). Phase 4: garage copy, ownership, card back.
-- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (Phase 1: title, optional image, summary; Phase 2: composed attachment); `card-display.js` for stat formatting; `renderers/card/` for canvas boot, compose-config, layout, and overlay stubs (drawing not wired)
+- **`/view-card`** — Phase 2: public catalog lookup (**front only**). **Discovery:** autocomplete on the `card` option ranks matches via `catalog-rank.js` (id/year/make/model; min 2 characters; max 25). **Execute:** 6-digit card id only — invalid format or unknown id → ephemeral error; valid id → interim embed (title + `image_url`) until compose lands. Phase 4: garage copy, ownership, card back.
+- **Renderers** — `embeds.js` for small/quick embeds (`/hello`, `/admin debug-latency`); `pack-reveal.js` for `/open-pack` pages (Phase 1: title, optional image, summary; Phase 2: composed attachment); `view-card.js` for catalog lookup interim embed; `card-display.js` for stat formatting; `renderers/card/` for canvas boot, compose-config, layout, and overlay stubs (drawing not wired)
 - **Pack reveal UX (Phase 1 interim)** — one card per page (low→high rarity), optional **Skip** to a summary page (high→low); footer `Card N of M` counts cards only; embed accent color by rarity (1★ `#cecdce` … 6★ `#b52af9`) **until Phase 2 drops it**; in-memory sessions keyed by **message id** (15 min TTL) so concurrent opens stay independent. **Follow-up:** enforce opener via session user id (avoid fail-open if Discord message interaction metadata is missing)
 - **Stats events** — each successful `/open-pack` appends `pack_open` plus one `pull` per card to `stats_events` (`pack-stats-events.js`); `packSize` matches configured `pack_size` (opens that cannot fill that many cards fail before stats). Insert failures are logged and do not block the reveal
 - **Performance in schema** nullable until Phase 3 calculator fills ratings
