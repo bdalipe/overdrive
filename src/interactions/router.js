@@ -30,12 +30,45 @@ async function sendInteractionError(interaction, error, label) {
 }
 
 async function handleInteraction(interaction, config) {
-    if (!interaction.isChatInputCommand() && !interaction.isButton()) {
+    if (
+        !interaction.isChatInputCommand()
+        && !interaction.isAutocomplete()
+        && !interaction.isButton()
+    ) {
         return;
     }
 
     const startedAt = metrics.startTimer();
     metrics.logInteractionStart(interaction);
+
+    if (interaction.isAutocomplete()) {
+        const command = commandHandlers.get(interaction.commandName);
+
+        if (!command || typeof command.handleAutocomplete !== 'function') {
+            logger.warn('unknown_autocomplete', { command: interaction.commandName });
+            await interaction.respond([]);
+            return;
+        }
+
+        try {
+            await command.handleAutocomplete(interaction, config);
+            metrics.logResponseSent(interaction, startedAt);
+        } catch (error) {
+            logger.error('interaction_failed', {
+                label: interaction.commandName,
+                userId: interaction.user.id,
+                guildId: interaction.guildId,
+                error: error.message,
+                stack: error.stack,
+            });
+
+            if (!interaction.responded) {
+                await interaction.respond([]);
+            }
+        }
+
+        return;
+    }
 
     if (interaction.isChatInputCommand()) {
         const command = commandHandlers.get(interaction.commandName);
@@ -73,6 +106,8 @@ async function handleInteraction(interaction, config) {
         } catch (error) {
             await sendInteractionError(interaction, error, interaction.customId);
         }
+
+        return;
     }
 }
 

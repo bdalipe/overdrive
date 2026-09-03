@@ -21,8 +21,26 @@ Phase 2 compose **contracts** (`canvas-architecture`). `package.json` on this br
 
 ---
 
-## [Unreleased]
+## [0.2.6] - 2026-09-02
 
+`/view-card` catalog lookup (`feature/view-card`). `package.json` on this branch is `0.2.5` so a `version:patch` merge to `develop` lands at `0.2.6`. Re-run `npm run register-commands` after deploy (new command + `card` autocomplete option).
+
+### Added
+- `/view-card` — public catalog lookup, **front only** (Phase 4 adds garage ownership and card back)
+  - Required `card` option with autocomplete; **execute accepts 6-digit card IDs only** (invalid format or unknown id → ephemeral error)
+  - Autocomplete ranks up to 25 matches via `catalog-rank.js` (id prefix, year, make/model/display name, multi-token out-of-order labels; min 2 characters); choice **name** = pack-reveal title, **value** = card id
+  - Interim reply: title + optional `image_url` embed (`renderers/view-card.js`) until canvas compose lands
+- `catalog-pool.js` — shared `cars:listAll` cache for pack `all_cars` draws and `/view-card` autocomplete; cleared with `invalidateCarPool` / `/admin clear-cache`
+- `catalog-rank.js` — relevance scoring and ranking for autocomplete
+- Interaction router dispatches autocomplete to `handleAutocomplete`; unknown commands and handler errors respond with an empty choice list
+
+### Changed
+- `pack-service.js` — `loadAllCars()` / `invalidateCarPool()` delegate to injected `catalogPool` (eligibility `all_cars` shares the same cache key)
+- `services/index.js` — exposes `catalogPool` on runtime config
+
+---
+
+## [Unreleased]
 ### Changed (post-M1 harden-hygiene + catalog-patch → `0.2.3`)
 - Pack-config / car-pool `getOrLoad` coalesces concurrent cache misses (one in-flight loader per key)
 - Cache `filter` / `explicit_ids` eligibility pools (TTL + hash key); cleared with car-pool invalidate / `/admin clear-cache`
@@ -50,7 +68,7 @@ Phase 2 compose **contracts** (`canvas-architecture`). `package.json` on this br
 
 **Phase 2 — card composition / reveal / filters**
 - Draw overlays and compose-then-display (`@napi-rs/canvas`) on the 1652×1029 baked base; star-row PNGs; RP overlay off until Phase 3
-- Public `/view-card` catalog lookup, **front only** (not admin-only; Phase 4 adds garage ownership and card back). No separate preview command
+- Public `/view-card` catalog lookup, **front only** — discovery + interim embed **shipped (`0.2.6`)**; composed front image still planned (Phase 4 adds garage ownership and card back)
 - Pack reveal uses the composed image; **remove rarity embed sidebar color** (Phase 1 accent was a placeholder)
 - Optional: `/admin` overlay-flag command persisting to a Supabase row (live in-memory apply + survive restart)
 - Multi-embed / multi-message pack openings (raise `pack_size` past single-message limits safely)
@@ -72,7 +90,7 @@ Phase 2 compose **contracts** (`canvas-architecture`). `package.json` on this br
 - Economy; upgrades; live races & **Gauntlet** (high-risk currency run: N cars / N rounds, one use each, fog-of-war later rounds, cash-out vs push, loss → nothing); campaign
 
 ### Deferred
-- Metrics: complete/error pairing on interaction failure paths; start/complete for modals/autocomplete when those types are added
+- Metrics: complete/error pairing on interaction failure paths; start/complete for modals when those types are added
 - `/admin debug-latency` sessions keyed by message id (like `/open-pack`) when convenient
 - Page `listActive` packs if catalogs approach PostgREST `max_rows` (Discord still caps 25 choices)
 - Imperial/metric display toggle
